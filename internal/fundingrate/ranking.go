@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-numb/go-ftx/auth"
 	"github.com/go-numb/go-ftx/rest"
 	"github.com/go-numb/go-ftx/rest/public/futures"
+	"github.com/go-numb/go-ftx/rest/public/markets"
 )
 
 // clientごと別パッケージに移す
@@ -76,6 +78,18 @@ func NewLatestRanking(date int64) RateRanking {
 			break
 		}
 	}
+	limited_term_name := "0326"
+	limited_term_list := map[string]markets.Market{}
+	markets, err := c.Markets(&markets.RequestForMarkets{})
+	for _, m := range *markets {
+		if strings.Contains(m.Name, limited_term_name) {
+			limited_term_list[m.Underlying] = m
+		}
+	}
+
+	if err != nil {
+		log.Fatal(err)
+	}
 	ranking := RateRanking{}
 	for k, v := range ret {
 		e := DailyRate{k, v}
@@ -84,7 +98,13 @@ func NewLatestRanking(date int64) RateRanking {
 
 	sort.Sort(ranking)
 	for i, entry := range ranking {
-		fmt.Printf("%d %s %.4f\n", i, entry.market, entry.rate/float64(date)*100)
+		var term_name string = ""
+		var volume float64 = 0
+		if market, ok := limited_term_list[strings.TrimRight(entry.market, "-PERP")]; ok {
+			term_name = limited_term_name
+			volume = market.VolumeUsd24H
+			fmt.Printf("%d %s %.4f (%s) vol: %.2f\n", i, entry.market, entry.rate/float64(date)*100, term_name, volume)
+		}
 	}
 	return ranking
 }
