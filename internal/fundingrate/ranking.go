@@ -7,16 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-numb/go-ftx/auth"
-	"github.com/go-numb/go-ftx/rest"
+	"github.com/egapool/ftx-fr/internal/client"
 	"github.com/go-numb/go-ftx/rest/public/futures"
 	"github.com/go-numb/go-ftx/rest/public/markets"
-)
-
-// clientごと別パッケージに移す
-const (
-	API_KEY    = "QLxTwhQ-y2Iy77FxMp5zFoPub-0C2zFqFxzFGgo5"
-	API_SECRET = "diUkSnRs1zHku42eju854fL-TRn-uKnML0ITUdgb"
 )
 
 type RateRanking []DailyRate
@@ -43,8 +36,7 @@ func (l RateRanking) Less(i, j int) bool {
 }
 
 func NewLatestRanking(date int64) RateRanking {
-	client := rest.New(auth.New(API_KEY, API_SECRET))
-	c := client
+	c := client.NewSubClient("shit").Rest
 	var t time.Time
 	var pool []futures.Rate
 	var end int64

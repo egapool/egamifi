@@ -4,23 +4,12 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/go-numb/go-ftx/auth"
-	"github.com/go-numb/go-ftx/rest"
+	"github.com/egapool/ftx-fr/internal/client"
 	"github.com/go-numb/go-ftx/rest/private/funding"
 )
 
-const (
-	API_KEY    = "QLxTwhQ-y2Iy77FxMp5zFoPub-0C2zFqFxzFGgo5"
-	API_SECRET = "diUkSnRs1zHku42eju854fL-TRn-uKnML0ITUdgb"
-)
-
 func main() {
-	client := rest.New(auth.New(API_KEY, API_SECRET))
-	c := client
-	// info, err := c.Information(&account.RequestForInformation{})
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	c := client.NewSubClient("shit").Rest
 
 	var sum float64
 	var end int64
@@ -37,7 +26,7 @@ func main() {
 			break
 		}
 		for i, f := range *funding {
-			fmt.Println(i, f.Rate, f.Payment, f.Time.Unix(), f.Time, sum)
+			fmt.Println(i, f.Future, f.Rate, f.Payment, f.Time.Unix(), f.Time, sum)
 			sum += f.Payment
 			end = f.Time.Unix()
 		}
