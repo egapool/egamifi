@@ -13,8 +13,8 @@ $response = file_get_contents($url);
 $json = json_decode($response, true);
 $result = array_reverse($json['result']);
 $list = [];
-// $term = '1225';
-$term = '0326';
+$term = '1225';
+//$term = '0326';
 $base = '';
 foreach ($result as $r) {
     if (strpos($r['name'], $term) !== false) {
@@ -59,9 +59,9 @@ $filter = [
 "AVAX",
 ];
 foreach ($list as $base => $l) {
-    if (!in_array($base, $filter)) {
-        continue;
-    }
+    // if (!in_array($base, $filter)) {
+    //     continue;
+    // }
     if (isset($l[$term]) && isset($l['PERP'])) {
         $diff = $l[$term] - $l['PERP'];
         if ($diff > 0) {
