@@ -9,14 +9,14 @@ import (
 )
 
 func main() {
-	c := client.NewSubClient("shit").Rest
+	c := client.NewClient().Rest
 
 	var sum float64
 	var end int64
 	for {
 		funding, err := c.Funding(&funding.Request{
-			// ProductCode: "MTA-PERP",
-			End: end,
+			ProductCode: "CREAM-PERP",
+			End:         end,
 			// Start:       1607029200 - (100 * 24 * 60 * 60),
 		})
 		if err != nil {

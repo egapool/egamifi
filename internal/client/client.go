@@ -14,6 +14,11 @@ type Client struct {
 	Rest *rest.Client
 }
 
+func NewClient() *Client {
+	client := rest.New(auth.New(API_KEY, API_SECRET))
+	return &Client{Rest: client}
+}
+
 func NewSubClient(subaccount_name string) *Client {
 	clientWithSubAccounts := rest.New(auth.New(
 		API_KEY,
