@@ -25,7 +25,7 @@ func NewSubClient(subaccount_name string) *Client {
 		API_SECRET,
 		auth.SubAccount{
 			UUID:     1,
-			Nickname: "shit",
+			Nickname: subaccount_name,
 		},
 	))
 	clientWithSubAccounts.Auth.UseSubAccountID(1)

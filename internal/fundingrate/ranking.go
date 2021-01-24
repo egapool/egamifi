@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/egapool/ftx-fr/internal/client"
+	"github.com/egapool/egamifi/internal/client"
 	"github.com/go-numb/go-ftx/rest/public/futures"
 	"github.com/go-numb/go-ftx/rest/public/markets"
 )
@@ -95,7 +95,7 @@ func NewLatestRanking(date int64) RateRanking {
 		if market, ok := limited_term_list[strings.TrimRight(entry.market, "-PERP")]; ok {
 			term_name = limited_term_name
 			volume = market.VolumeUsd24H
-			fmt.Printf("%d %s %.4f/D %.3f/M (%s) vol: %.2f\n", i, entry.market, entry.rate/float64(date)*100, entry.rate/float64(date)*100*30, term_name, volume)
+			fmt.Printf("%d %s %.4f%%/Day %.3f%%/Month (%s) vol: %.2f\n", i, entry.market, entry.rate/float64(date)*100, entry.rate/float64(date)*100*30, term_name, volume)
 		}
 	}
 	return ranking
