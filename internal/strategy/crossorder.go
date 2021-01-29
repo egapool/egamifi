@@ -16,18 +16,25 @@ type CrossOrder struct {
 	// order出すかどうかの境界値
 	border float64
 
-	short  string
-	long   string
+	Short  string
+	Long   string
 	client *rest.Client
 }
 
 func NewCrossOrder(client *rest.Client, border float64, long, short string) *CrossOrder {
 	return &CrossOrder{
 		border: border,
-		long:   long,
-		short:  short,
+		Long:   long,
+		Short:  short,
 		client: client,
 	}
+}
+
+func (c *CrossOrder) ShouldEntery(diff float64) bool {
+	if diff < c.border {
+		return true
+	}
+	return false
 }
 
 func errorHandle(err error) {
@@ -47,37 +54,41 @@ var (
 
 func (c *CrossOrder) UpdateTicker(diff, askPrice, size float64) {
 	// 注文だすかどうかのジャッジ
-	if diff <= c.border {
+	if !c.ShouldEntery(diff) {
 		return
 	}
 
 	// 注文
-	res := c.PlaceLongOrder(askPrice, size)
-	if res.Status == "closed" {
+	longOrderResponse := c.PlaceLongOrder(askPrice, size)
+	if longOrderResponse.Status == "closed" {
 		status2 := c.PlaceShortOrder(size)
 		fmt.Println(status2)
 		return
 	}
-	if res.FilledSize == 0 {
-		fmt.Println("Longpositionをキャンセルします")
-		r, err := c.client.CancelByID(&orders.RequestForCancelByID{OrderID: res.ID})
+	if longOrderResponse.FilledSize == 0 {
+		fmt.Println("Longポジションをキャンセルします")
+		r, err := c.client.CancelByID(&orders.RequestForCancelByID{OrderID: longOrderResponse.ID})
 		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println(r)
-	} else if res.RemainingSize > 0 {
-		// order cancel
+	} else if longOrderResponse.RemainingSize > 0 {
+		fmt.Println("未約定部分のロングポジションをキャンセルします")
+		_, err := c.client.CancelByID(&orders.RequestForCancelByID{OrderID: longOrderResponse.ID})
+		if err != nil {
+			log.Fatal(err)
+		}
 		fmt.Println("部分約定の反対positionを立てます")
-		r := c.PlaceShortOrder(res.RemainingSize)
+		r := c.PlaceShortOrder(longOrderResponse.FilledSize)
 		fmt.Println(r)
 		return
 	}
 }
 
 func (c *CrossOrder) PlaceLongOrder(price, size float64) *orders.ResponseForOrderStatus {
-	fmt.Println("Execution Long Order", c.long, price, size)
+	fmt.Println("Execution Long Order", c.Long, price, size)
 	res, err := c.client.PlaceOrder(&orders.RequestForPlaceOrder{
-		Market: c.long,
+		Market: c.Long,
 		Side:   "buy",
 		Type:   "limit",
 		Size:   size,
@@ -101,7 +112,7 @@ func (c *CrossOrder) PlaceLongOrder(price, size float64) *orders.ResponseForOrde
 		}
 		fmt.Println(status)
 		if status.Status == "closed" {
-			fmt.Println("完全約定しました", c.long)
+			fmt.Println("完全約定しました", c.Long)
 			return status
 		}
 		wait++
@@ -114,9 +125,9 @@ func (c *CrossOrder) PlaceLongOrder(price, size float64) *orders.ResponseForOrde
 }
 
 func (c *CrossOrder) PlaceShortOrder(size float64) *orders.ResponseForPlaceOrder {
-	fmt.Println("Execution Order", c.short, size)
+	fmt.Println("Execution Order", c.Short, size)
 	res, err := c.client.PlaceOrder(&orders.RequestForPlaceOrder{
-		Market: c.short,
+		Market: c.Short,
 		Side:   "sell",
 		Type:   "market",
 		Size:   size,
