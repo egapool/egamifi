@@ -10,16 +10,11 @@ const (
 	API_SECRET = "diUkSnRs1zHku42eju854fL-TRn-uKnML0ITUdgb"
 )
 
-type Client struct {
-	Rest *rest.Client
+func NewRestClient() *rest.Client {
+	return rest.New(auth.New(API_KEY, API_SECRET))
 }
 
-func NewClient() *Client {
-	client := rest.New(auth.New(API_KEY, API_SECRET))
-	return &Client{Rest: client}
-}
-
-func NewSubClient(subaccount_name string) *Client {
+func NewSubRestClient(subaccount_name string) *rest.Client {
 	clientWithSubAccounts := rest.New(auth.New(
 		API_KEY,
 		API_SECRET,
@@ -29,6 +24,5 @@ func NewSubClient(subaccount_name string) *Client {
 		},
 	))
 	clientWithSubAccounts.Auth.UseSubAccountID(1)
-	client := &Client{Rest: clientWithSubAccounts}
-	return client
+	return clientWithSubAccounts
 }
