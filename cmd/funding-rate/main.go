@@ -1,6 +1,6 @@
 package main
 
-import "github.com/egapool/ftx-fr/internal/fundingrate"
+import "github.com/egapool/egamifi/internal/fundingrate"
 
 /*
  *

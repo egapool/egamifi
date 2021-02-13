@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/egapool/ftx-fr/internal/client"
+	"github.com/egapool/egamifi/internal/client"
 	"github.com/go-numb/go-ftx/rest/private/funding"
 )
 
 func main() {
-	c := client.NewClient().Rest
+	c := client.NewRestClient()
 
 	var sum float64
 	var end int64

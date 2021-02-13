@@ -1,3 +1,4 @@
 vendor
 notebook/cache/*
 !.gitkeep
+.env

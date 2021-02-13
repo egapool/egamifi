@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/egapool/ftx-fr/internal/client"
+	"github.com/egapool/egamifi/internal/client"
 	"github.com/go-numb/go-ftx/rest/private/wallet"
 )
 
