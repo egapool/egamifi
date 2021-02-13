@@ -22,7 +22,7 @@ func main() {
 	switch os.Args[1] {
 	case "balance":
 		balanceCmd.Parse(os.Args[2:])
-		client := client.NewClient()
+		client := client.NewRestClient()
 		account.BalancesAll(client)
 		fmt.Println("subcommand 'balance'")
 		fmt.Println("  enable:", accountName)

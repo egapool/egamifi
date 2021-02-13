@@ -22,9 +22,9 @@ func main() {
 	long_ask_size := 0.0
 	short_bid := 0.0
 	short_bid_size := 0.0
-	client := client.NewSubClient("shit").Rest
+	client := client.NewSubRestClient("shit")
 	future := "DEFI"
-	crossorder := strategy.NewCrossOrder(client, 0.010, future+"-0326", future+"-PERP")
+	crossorder := strategy.NewCrossOrder(client, 0.0022, future+"-0326", future+"-PERP")
 	go realtime.Connect(ctx, ch, []string{"ticker"}, []string{crossorder.Long, crossorder.Short}, nil)
 	for {
 		select {

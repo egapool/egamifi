@@ -36,7 +36,7 @@ func (l RateRanking) Less(i, j int) bool {
 }
 
 func NewLatestRanking(date int64) RateRanking {
-	c := client.NewSubClient("shit").Rest
+	c := client.NewSubRestClient("shit")
 	var t time.Time
 	var pool []futures.Rate
 	var end int64

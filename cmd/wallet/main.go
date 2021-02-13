@@ -12,7 +12,7 @@ import (
 const USD = "USD"
 
 func main() {
-	c := client.NewSubClient("shit").Rest
+	c := client.NewSubRestClient("shit")
 
 	for {
 		balances, err := c.Balances(&wallet.RequestForBalances{})
