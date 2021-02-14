@@ -30,26 +30,4 @@ func TestCompute(t *testing.T) {
 	}
 	repo.Store(ohlc)
 
-	// // strategy := CrossOrder{
-	// // 	border: 5,
-	// // 	long:   "SHIT-0326",
-	// // 	short:  "SHIT-PERP",
-	// // 	client: client.NewSubClient("shit").Rest,
-	// // }
-	// client := client.NewSubClient("shit").Rest
-	// _, err := client.OrderStatus(&orders.RequestForOrderStatus{
-	// 	OrderID: "97878787878",
-	// })
-	// fmt.Println(OrderNotfound.Error())
-	// if err != nil {
-	// 	switch err.Error() {
-	// 	case OrderNotfound.Error():
-	// 		fmt.Println("404", err)
-	// 	default:
-	// 		fmt.Println("default", err)
-	//
-	// 	}
-	// }
-	// fmt.Println("Execution Order ")
-	// strategy.UpdateTicker(10, 1933.2, 0.001)
 }
