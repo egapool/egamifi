@@ -4,6 +4,7 @@ import "time"
 
 type Ohlc struct {
 	ID         uint      `json:"id"`
+	Market     string    `json:"market"`
 	Close      float64   `json:"close"`
 	High       float64   `json:"high"`
 	Low        float64   `json:"low"`
