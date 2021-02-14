@@ -3,14 +3,23 @@ package repository
 import "github.com/egapool/egamifi/domain"
 
 type OhlcRepository struct {
-    SqlHandler
+	*Repository
+}
+
+func NewOhlcRepository() *OhlcRepository {
+	return &OhlcRepository{
+		NewRepository(),
+	}
 }
 
 func (repo *OhlcRepository) Store(ohlc domain.Ohlc) {
-    _, err := repo.Execute(
-        "INSERT INTO ohlcs (open,high,low,close,volume,start_time,resolution) VALUES (?,?,?,?,?,?,?)", ohlc.Open, ohlc.High, ohlc.Low,ohlc.Close,ohlc.Volume,ohlc.StartTime,ohlc.Resolution,
-    )
-    if err != nil {
-        return
-    }
+	repo.db.Create(&domain.Ohlc{
+		Close:      ohlc.Close,
+		Open:       ohlc.Open,
+		High:       ohlc.High,
+		Low:        ohlc.Low,
+		StartTime:  ohlc.StartTime,
+		Volume:     ohlc.Volume,
+		Resolution: ohlc.Resolution,
+	})
 }

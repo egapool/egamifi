@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"github.com/egapool/egamifi/database"
 	"gorm.io/gorm"
 )
 
@@ -12,7 +13,6 @@ type Repository struct {
 // NewRepository ...
 func NewRepository() *Repository {
 	return &Repository{
-		db:             lib.GetDBConn().Db,
+		db: database.GetDBConn().Db,
 	}
 }
-

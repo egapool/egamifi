@@ -1,8 +1,14 @@
 package domain
 
-import "github.com/go-numb/go-ftx/rest/public/markets"
+import "time"
 
 type Ohlc struct {
-    markets.Candle
-    Resolution int
+	ID         uint      `json:"id"`
+	Close      float64   `json:"close"`
+	High       float64   `json:"high"`
+	Low        float64   `json:"low"`
+	Open       float64   `json:"open"`
+	Volume     float64   `json:"volume"`
+	StartTime  time.Time `json:"startTime"`
+	Resolution int       `json:"resolution"`
 }

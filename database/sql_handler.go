@@ -38,27 +38,14 @@ func NewSQLHandler() *SQLHandler {
 
 	var db *gorm.DB
 	var err error
-	if os.Getenv("USE_GAE") != "1" {
-		dsn := user + ":" + password + "@tcp(" + host + ":" + port + ")/" + database + "?parseTime=true&loc=Asia%2FTokyo"
-		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
-		if err != nil {
-			fmt.Println("mysql", user+":"+password+"@tcp("+host+":"+port+")/"+database+"?parseTime=true&loc=Asia%2FTokyo")
-			panic(err)
-		}
-	} else {
-		var (
-			instanceConnectionName = os.Getenv("DB_CONNECTION_NAME") // e.g. 'project:region:instance'
-		)
-
-		var dbURI string
-		dbURI = fmt.Sprintf("%s:%s@unix(/cloudsql/%s)/%s?parseTime=true", user, password, instanceConnectionName, database)
-
-		// dbPool is the pool of database connections.
-		db, err = gorm.Open(mysql.Open(dbURI), &gorm.Config{})
-		if err != nil {
-			panic(err)
-		}
+	dsn := user + ":" + password + "@tcp(" + host + ":" + port + ")/" + database + "?parseTime=true&loc=Asia%2FTokyo"
+	fmt.Println(dsn)
+	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		fmt.Println("mysql", user+":"+password+"@tcp("+host+":"+port+")/"+database+"?parseTime=true&loc=Asia%2FTokyo")
+		panic(err)
 	}
+	fmt.Println("接続OK")
 
 	sqlDB, _ := db.DB()
 	//コネクションプールの最大接続数を設定。

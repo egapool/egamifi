@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+   db:
+     image: mysql@sha256:870892ea5cc8c623b389717c2eedd58248c82a8569d7601ede62a63d527641bd
+     volumes:
+       - db_data:/var/lib/mysql
+     ports:
+       - "3308:3306"
+     environment:
+       MYSQL_ROOT_PASSWORD: root
+       MYSQL_DATABASE: egamifi
+       MYSQL_USER: egamifi
+       MYSQL_PASSWORD: password
+volumes:
+    db_data:
+
