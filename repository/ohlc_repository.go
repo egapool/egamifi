@@ -18,6 +18,12 @@ func NewOhlcRepository() *OhlcRepository {
 	}
 }
 
+func (repo *OhlcRepository) Latest(market string) domain.Ohlc {
+	var ohlc domain.Ohlc
+	repo.db.Where("market = ?", market).Last(&ohlc)
+	return ohlc
+}
+
 func (repo *OhlcRepository) Store(ohlc domain.Ohlc) {
 	repo.db.Create(&domain.Ohlc{
 		Market:     ohlc.Market,

@@ -14,3 +14,10 @@ type Ohlc struct {
 	Resolution int       `json:"resolution"`
 	Exchanger  string    `json:"exchanger"`
 }
+
+func (ohlc *Ohlc) Empty() bool {
+	if ohlc.ID == 0 {
+		return true
+	}
+	return false
+}

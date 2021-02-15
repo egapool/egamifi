@@ -1,7 +1,6 @@
 package ftx
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/egapool/egamifi/database"
@@ -20,7 +19,8 @@ func TestCompute(t *testing.T) {
 
 	repo := repository.NewOhlcRepository()
 	usecase := NewSaveOhlcUsecase(*repo)
-	market := "BTC-1225"
-	fmt.Println(market)
-	usecase.SaveOhlc(market)
+	// market := "ATOM-0326"
+	// fmt.Println(market)
+	// usecase.SaveOhlc(market)
+	usecase.SaveAllOhlcs()
 }

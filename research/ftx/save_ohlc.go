@@ -1,7 +1,9 @@
 package ftx
 
 import (
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/egapool/egamifi/domain"
 	client "github.com/egapool/egamifi/exchanger/ftx"
@@ -31,14 +33,23 @@ func NewSaveOhlcUsecase(ohlcrepo repository.OhlcRepository) *SaveOhlcUsecase {
 }
 
 func (uc *SaveOhlcUsecase) SaveOhlc(market string) {
-	// DIPに反する
+	latest := uc.ohlcrepo.Latest(market)
+	var start int64
+	if !latest.Empty() {
+		start = latest.StartTime.Add(time.Second).Unix()
+	}
+	fmt.Println("Save ", market, "Start:", start)
 
 	// 時価API取得
-	candles, err := uc.client.Candles(&markets.RequestForCandles{
+	// DIPに反する
+	req := &markets.RequestForCandles{
 		ProductCode: market,
 		Resolution:  resolution,
 		Limit:       5000,
-	})
+		Start:       start,
+	}
+
+	candles, err := uc.client.Candles(req)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,4 +68,21 @@ func (uc *SaveOhlcUsecase) SaveOhlc(market string) {
 		})
 	}
 	uc.ohlcrepo.BulkStore(bulk)
+}
+
+func (uc *SaveOhlcUsecase) SaveAllOhlcs() {
+	// market fetch
+	futures, err := uc.client.Markets(&markets.RequestForMarkets{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// save
+	for _, market := range *futures {
+		if market.Underlying == "" {
+			continue
+		}
+		uc.SaveOhlc(market.Name)
+	}
+
 }
