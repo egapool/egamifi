@@ -18,9 +18,9 @@ func NewOhlcRepository() *OhlcRepository {
 	}
 }
 
-func (repo *OhlcRepository) Latest(market string) domain.Ohlc {
+func (repo *OhlcRepository) Latest(market string, exchanger string, resolution int) domain.Ohlc {
 	var ohlc domain.Ohlc
-	repo.db.Where("market = ?", market).Last(&ohlc)
+	repo.db.Where("market = ?", market).Where("exchanger = ?", exchanger).Where("resolution = ?", resolution).Last(&ohlc)
 	return ohlc
 }
 

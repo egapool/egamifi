@@ -33,7 +33,7 @@ func NewSaveOhlcUsecase(ohlcrepo repository.OhlcRepository) *SaveOhlcUsecase {
 }
 
 func (uc *SaveOhlcUsecase) SaveOhlc(market string) {
-	latest := uc.ohlcrepo.Latest(market)
+	latest := uc.ohlcrepo.Latest(market, exchangerName, resolution)
 	var start int64
 	if !latest.Empty() {
 		start = latest.StartTime.Add(time.Second).Unix()
