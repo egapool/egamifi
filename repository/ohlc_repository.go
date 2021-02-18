@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -57,4 +58,30 @@ func (repo *OhlcRepository) BulkStore(ohlcs []domain.Ohlc) {
 
 	repo.db.Exec(str + query)
 
+}
+
+type RequestForOhlcGet struct {
+	Exchanger string
+	Market    string
+	Start     time.Time
+	End       time.Time
+}
+
+func (repo *OhlcRepository) Get(r *RequestForOhlcGet) (ohlcs []domain.Ohlc) {
+	if r.Exchanger == "" {
+		log.Fatal("Exchanger is required.")
+	}
+	if r.Market == "" {
+		log.Fatal("Market is required.")
+	}
+	query := repo.db.Where("exchanger = ?", r.Exchanger).Where("market = ?", r.Market)
+	if !r.Start.IsZero() {
+		query = query.Where("start_time >= ?", r.Start.Format("2006-01-02 15:04:05"))
+	}
+	if !r.End.IsZero() {
+		query = query.Where("start_time <= ?", r.End.Format("2006-01-02 15:04:05"))
+	}
+
+	query.Find(&ohlcs)
+	return
 }
