@@ -27,7 +27,6 @@ func (uc *DeviationRateUsecase) History(quarter, perp string, start, end time.Ti
 		End:       end,
 	})
 
-	// TODO quarterのstartとendを使う
 	perp_ohlc := uc.ohlcrepo.Get(&repository.RequestForOhlcGet{
 		Exchanger: exchanger,
 		Market:    perp,
