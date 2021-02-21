@@ -3,6 +3,7 @@ package ftx
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/egapool/egamifi/domain"
@@ -80,6 +81,9 @@ func (uc *SaveOhlcUsecase) SaveAllOhlcs() {
 	// save
 	for _, market := range *futures {
 		if market.Underlying == "" {
+			continue
+		}
+		if strings.Contains(market.Name, "MOVE") {
 			continue
 		}
 		uc.SaveOhlc(market.Name)
