@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/egapool/egamifi/repository"
@@ -28,16 +29,22 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if quarterFlag == "" {
-			log.Fatal("quarter is required.")
+			log.Fatal("quarter is required. ex. -p DEFI-0326")
+		}
+		if strings.Contains(quarterFlag, "PERP") {
+			log.Fatal("quarter is not PERP. ex. -p DEFI-0326")
 		}
 		if perpFlag == "" {
-			log.Fatal("perp is required.")
+			log.Fatal("perp is required. ex. -p DEFI-PERP")
+		}
+		if !strings.Contains(perpFlag, "PERP") {
+			log.Fatal("perp must be ****-PERP. ex. -p DEFI-PERP")
 		}
 		if startFrag == "" {
-			log.Fatal("start is required.")
+			startFrag = time.Now().Format("2006-01-02")
 		}
 		if endFlag == "" {
-			log.Fatal("end is required.")
+			endFlag = time.Now().Format("2006-01-02")
 		}
 		if exchangerFlag == "" {
 			log.Fatal("exchanger is required.")
