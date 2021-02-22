@@ -54,6 +54,10 @@ func (uc *SaveOhlcUsecase) SaveOhlc(market string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if len(*candles) == 0 {
+		fmt.Println("No new rate.")
+		return
+	}
 	var bulk []domain.Ohlc
 	for _, c := range *candles {
 		bulk = append(bulk, domain.Ohlc{
