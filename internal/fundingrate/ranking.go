@@ -45,8 +45,8 @@ func NewLatestRanking(date int64) RateRanking {
 	for {
 		pool = []futures.Rate{}
 		rates, err := c.Rates(&futures.RequestForRates{
-			// ProductCode: "SHIT-PERP",
-			End: end})
+			ProductCode: "DEFI-PERP",
+			End:         end})
 		if err != nil {
 			log.Fatal(err)
 		}

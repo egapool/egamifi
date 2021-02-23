@@ -39,13 +39,11 @@ func NewSQLHandler() *SQLHandler {
 	var db *gorm.DB
 	var err error
 	dsn := user + ":" + password + "@tcp(" + host + ":" + port + ")/" + database + "?parseTime=true&loc=Asia%2FTokyo"
-	fmt.Println(dsn)
 	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		fmt.Println("mysql", user+":"+password+"@tcp("+host+":"+port+")/"+database+"?parseTime=true&loc=Asia%2FTokyo")
 		panic(err)
 	}
-	fmt.Println("接続OK")
 
 	sqlDB, _ := db.DB()
 	//コネクションプールの最大接続数を設定。
