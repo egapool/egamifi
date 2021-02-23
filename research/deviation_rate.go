@@ -2,6 +2,8 @@
 package research
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/egapool/egamifi/domain"
@@ -18,7 +20,7 @@ func NewDeviationRateUsecase(ohlcrepo repository.OhlcRepository) *DeviationRateU
 	}
 }
 
-func (uc *DeviationRateUsecase) History(quarter, perp string, start, end time.Time, exchanger string) domain.DeviationRates {
+func (uc *DeviationRateUsecase) History(quarter, perp string, start, end time.Time, exchanger string) (domain.DeviationRates, error) {
 	var rates domain.DeviationRates
 	quarter_ohlc := uc.ohlcrepo.Get(&repository.RequestForOhlcGet{
 		Exchanger: exchanger,
@@ -26,6 +28,10 @@ func (uc *DeviationRateUsecase) History(quarter, perp string, start, end time.Ti
 		Start:     start,
 		End:       end,
 	})
+	if len(quarter_ohlc) == 0 {
+		fmt.Println("No quarter ohls")
+		return nil, errors.New("No result")
+	}
 
 	perp_ohlc := uc.ohlcrepo.Get(&repository.RequestForOhlcGet{
 		Exchanger: exchanger,
@@ -37,5 +43,5 @@ func (uc *DeviationRateUsecase) History(quarter, perp string, start, end time.Ti
 	for i, q := range quarter_ohlc {
 		rates = append(rates, domain.NewDeviationRate(q, perp_ohlc[i]))
 	}
-	return rates
+	return rates, nil
 }

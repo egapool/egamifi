@@ -84,7 +84,10 @@ func getDeviationRate() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ret := usecase.History(quarterFlag, perpFlag, start, end, exchangerFlag)
+	ret, err := usecase.History(quarterFlag, perpFlag, start, end, exchangerFlag)
+	if err != nil {
+		log.Fatal(err)
+	}
 	for _, r := range ret {
 		fmt.Println(r.Time, r.DeviationRate)
 	}
