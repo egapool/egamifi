@@ -12,18 +12,19 @@ import (
 const USD = "USD"
 
 func main() {
-	c := client.NewSubRestClient("shit")
+	c := client.NewSubRestClient("ap")
+	// c := client.NewRestClient()
 
-	for {
-		balances, err := c.Balances(&wallet.RequestForBalances{})
-		if err != nil {
-			log.Fatal(err)
-		}
-		for _, b := range *balances {
-			if b.Coin == USD {
-				fmt.Println(b.Total, time.Now().Format(time.UnixDate))
-			}
-		}
-		time.Sleep(time.Minute)
+	// for {
+	balances, err := c.Balances(&wallet.RequestForBalances{})
+	if err != nil {
+		log.Fatal(err)
 	}
+	for _, b := range *balances {
+		fmt.Println(b, time.Now().Format(time.UnixDate))
+		// if b.Coin == USD {
+		// }
+	}
+	// time.Sleep(time.Minute)
+	// }
 }

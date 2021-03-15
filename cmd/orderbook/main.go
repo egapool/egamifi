@@ -22,9 +22,9 @@ func main() {
 	long_ask_size := 0.0
 	short_bid := 0.0
 	short_bid_size := 0.0
-	client := client.NewSubRestClient("shit")
-	future := "DEFI"
-	crossorder := strategy.NewCrossOrder(client, 0.0022, future+"-0326", future+"-PERP")
+	client := client.NewSubRestClient("0326")
+	future := "SHIT"
+	crossorder := strategy.NewCrossOrder(client, -20.00, future+"-0625", future+"-PERP")
 	go realtime.Connect(ctx, ch, []string{"ticker"}, []string{crossorder.Long, crossorder.Short}, nil)
 	for {
 		select {
@@ -53,7 +53,7 @@ func main() {
 
 				if crossorder.ShouldEntery(diff) {
 					var size float64
-					notification.Notify(diff)
+					notification.Notify(fmt.Sprintf("%f", diff))
 					if long_ask_size < short_bid_size {
 						size = long_ask_size
 					} else {

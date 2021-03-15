@@ -35,6 +35,7 @@ func (l RateRanking) Less(i, j int) bool {
 	}
 }
 
+// TODO volume合算していない
 func NewLatestRanking(date int64) RateRanking {
 	c := client.NewSubRestClient("shit")
 	var t time.Time
@@ -45,8 +46,8 @@ func NewLatestRanking(date int64) RateRanking {
 	for {
 		pool = []futures.Rate{}
 		rates, err := c.Rates(&futures.RequestForRates{
-			ProductCode: "DEFI-PERP",
-			End:         end})
+			// ProductCode: "DEFI-PERP",
+			End: end})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -70,12 +71,12 @@ func NewLatestRanking(date int64) RateRanking {
 			break
 		}
 	}
-	limited_term_name := "0326"
-	limited_term_list := map[string]markets.Market{}
+	limited_quarter_name := "0625"
+	limited_quarter_list := map[string]markets.Market{}
 	markets, err := c.Markets(&markets.RequestForMarkets{})
 	for _, m := range *markets {
-		if strings.Contains(m.Name, limited_term_name) {
-			limited_term_list[m.Underlying] = m
+		if strings.Contains(m.Name, limited_quarter_name) {
+			limited_quarter_list[m.Underlying] = m
 		}
 	}
 
@@ -92,8 +93,8 @@ func NewLatestRanking(date int64) RateRanking {
 	for i, entry := range ranking {
 		var term_name string = ""
 		var volume float64 = 0
-		if market, ok := limited_term_list[strings.TrimRight(entry.market, "-PERP")]; ok {
-			term_name = limited_term_name
+		if market, ok := limited_quarter_list[strings.TrimRight(entry.market, "-PERP")]; ok {
+			term_name = limited_quarter_name
 			volume = market.VolumeUsd24H
 			fmt.Printf("%d %s %.4f%%/Day %.3f%%/Month (%s) vol: %.2f\n", i, entry.market, entry.rate/float64(date)*100, entry.rate/float64(date)*100*30, term_name, volume)
 		}

@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-func Notify(diff float64) {
+func Notify(message string) {
 	channel := "test"
-	text := "<!channel> " + fmt.Sprintf("%g", diff) + time.Now().Format(time.UnixDate)
+	text := "<!channel> " + message + time.Now().Format(time.UnixDate)
 	jsonStr := `{"channel":"` + channel + `","text":"` + text + `"}`
 	req, err := http.NewRequest(
 		"POST",

@@ -3,6 +3,7 @@ package ftx
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -29,7 +30,7 @@ type SaveOhlcUsecase struct {
 func NewSaveOhlcUsecase(ohlcrepo repository.OhlcRepository) *SaveOhlcUsecase {
 	return &SaveOhlcUsecase{
 		ohlcrepo: ohlcrepo,
-		client:   client.NewRestClient(),
+		client:   client.NewRestClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET")),
 	}
 }
 

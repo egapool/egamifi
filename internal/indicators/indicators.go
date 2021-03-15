@@ -1,0 +1,98 @@
+// Package indicators provides functions that can be used as
+// indicators for finance products.
+package indicators
+
+// Sma calculates simple moving average of a slice for a certain
+// number of time periods.
+func (slice Mfloat) SMA(period int) []float64 {
+
+	var smaSlice []float64
+
+	for i := period; i <= len(slice); i++ {
+		smaSlice = append(smaSlice, Sum(slice[i-period:i])/float64(period))
+	}
+
+	return smaSlice
+}
+
+// Ema calculates exponential moving average of a slice for a certain
+// number of tiSmame periods.
+func (slice Mfloat) EMA(period int) []float64 {
+
+	var emaSlice []float64
+
+	ak := period + 1
+	k := float64(2) / float64(ak)
+
+	emaSlice = append(emaSlice, slice[0])
+
+	for i := 1; i < len(slice); i++ {
+		emaSlice = append(emaSlice, (slice[i]*float64(k))+(emaSlice[i-1]*float64(1-k)))
+	}
+
+	return emaSlice
+}
+
+// BollingerBands returns upper band, lower band and simple moving
+// average of a slice.
+func BollingerBands(slice Mfloat, period int, nStd float64) ([]float64, []float64, []float64) {
+
+	var upperBand, lowerBand, middleBand Mfloat
+
+	middleBand = slice.SMA(period)
+	// std := Std(middleBand)
+	std := Std(slice[len(slice)-period:])
+	upperBand = middleBand.AddToAll(std * nStd)
+	lowerBand = middleBand.AddToAll(-1.0 * std * nStd)
+
+	return middleBand, upperBand, lowerBand
+}
+
+// MACD stands for moving average convergence divergence.
+func MACD(data Mfloat, ema ...int) ([]float64, []float64) {
+
+	var macd, ema1, ema2, ema3 Mfloat
+
+	if len(ema) < 3 {
+		ema = []int{12, 26, 9}
+	}
+
+	ema1 = data.EMA(ema[0])
+	ema2 = data.EMA(ema[1])
+	macd = SubSlices(ema1, ema2)
+	ema3 = macd.EMA(ema[2])
+
+	return macd, ema3
+}
+
+// OBV means On Balance Volume.
+func OBV(priceData, volumeData Mfloat) []float64 {
+
+	obv := []float64{volumeData[0]}
+
+	for i, vol := range volumeData[1:] {
+		if priceData[i] > priceData[i-1] {
+			obv = append(obv, obv[i-1]+vol)
+		} else if priceData[i] < priceData[i-1] {
+			obv = append(obv, obv[i-1]-vol)
+		} else {
+			obv = append(obv, obv[i-1])
+		}
+	}
+
+	return obv
+}
+
+// Ichimoku Cloud.
+func IchimokuCloud(priceData, lowData, highData Mfloat, configs []int) ([]float64, []float64, []float64, []float64, []float64) {
+
+	var conversionLine, baseLine, leadSpanA, leadSpanB, lagSpan []float64
+
+	conversionLine = DivSlice(SubSlices(highData.SMA(9), lowData.SMA(9)), 2)
+	baseLine = DivSlice(SubSlices(highData.SMA(26), lowData.SMA(26)), 2)
+	leadSpanA = DivSlice(AddSlices(conversionLine, baseLine), 2)
+	leadSpanB = DivSlice(SubSlices(highData.SMA(52), lowData.SMA(52)), 2)
+	lagSpan = priceData[0 : len(priceData)-26]
+
+	return conversionLine, baseLine, leadSpanA, leadSpanB, lagSpan
+}

@@ -2,18 +2,17 @@ package main
 
 import (
 	"github.com/egapool/egamifi/cmd"
-	"github.com/egapool/egamifi/database"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	// viperに置き換える
+	// TODO viperに置き換える
 	err := godotenv.Load()
 	if err != nil {
 		panic(err)
 	}
-	database.DBOpen()
-	defer database.DBClose()
+	// database.DBOpen()
+	// defer database.DBClose()
 	cmd.Execute()
 	// c := client.NewRestClient()
 	//

@@ -1,31 +1,29 @@
 package ftx
 
 import (
+	"fmt"
+
 	"github.com/go-numb/go-ftx/auth"
 	"github.com/go-numb/go-ftx/rest"
 )
 
-const (
-	API_KEY    = "QLxTwhQ-y2Iy77FxMp5zFoPub-0C2zFqFxzFGgo5"
-	API_SECRET = "diUkSnRs1zHku42eju854fL-TRn-uKnML0ITUdgb"
-)
-
-func NewClient(name string) *rest.Client {
+func NewClient(api_key, api_secret, name string) *rest.Client {
 	if name == "" {
-		return NewRestClient()
+		return NewRestClient(api_key, api_secret)
 	} else {
-		return NewSubRestClient(name)
+		return NewSubRestClient(api_key, api_secret, name)
 	}
 }
 
-func NewRestClient() *rest.Client {
-	return rest.New(auth.New(API_KEY, API_SECRET))
+func NewRestClient(api_key, api_secret string) *rest.Client {
+	return rest.New(auth.New(api_key, api_secret))
 }
 
-func NewSubRestClient(subaccount_name string) *rest.Client {
+func NewSubRestClient(api_key, api_secret, subaccount_name string) *rest.Client {
+	fmt.Println(api_key, api_secret, subaccount_name)
 	clientWithSubAccounts := rest.New(auth.New(
-		API_KEY,
-		API_SECRET,
+		api_key,
+		api_secret,
 		auth.SubAccount{
 			UUID:     1,
 			Nickname: subaccount_name,
