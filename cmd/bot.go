@@ -7,8 +7,8 @@ import (
 )
 
 // researchCmd represents the research command
-var tradeCmd = &cobra.Command{
-	Use:   "trade",
+var botCmd = &cobra.Command{
+	Use:   "bot",
 	Short: "A brief description of your command",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
@@ -22,7 +22,7 @@ to quickly create a Cobra application.`,
 }
 
 func init() {
-	rootCmd.AddCommand(tradeCmd)
+	rootCmd.AddCommand(botCmd)
 
 	// Here you will define your flags and configuration settings.
 
