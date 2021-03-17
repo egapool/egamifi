@@ -172,17 +172,17 @@ func (b *BbNunpin) websocketRun() {
 						// 決済用
 						var close_price float64
 						if v.Fills.Side == "buy" {
-							close_price = v.Fills.Price + 50
+							close_price = b.position.avgPrice + 50
 						} else {
-							close_price = v.Fills.Price - 50
+							close_price = b.position.avgPrice - 50
 						}
 						b.PlaceOrder(b.market, b.oppositeSide(), close_price, v.Fills.Size, 1)
 
 						// ナンピン用
 						if v.Fills.Side == "buy" {
-							close_price = v.Fills.Price - 200
+							close_price = b.position.avgPrice - 200
 						} else {
-							close_price = v.Fills.Price + 200
+							close_price = b.position.avgPrice + 200
 						}
 						b.PlaceOrder(b.market, b.position.side, close_price, v.Fills.Size*1.5, 1)
 
