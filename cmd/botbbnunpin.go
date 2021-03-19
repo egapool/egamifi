@@ -8,16 +8,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var bbnunpinSizeFlag float64
+
 // researchpriceCmd represents the researchprice command
 var botbbnunpinCmd = &cobra.Command{
 	Use:   "bbn",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "ボリンジャーナンピンbot",
+	Long:  `ボリンジャーナンピンbotです`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runBborder()
 	},
@@ -25,11 +22,12 @@ to quickly create a Cobra application.`,
 
 func init() {
 	botCmd.AddCommand(botbbnunpinCmd)
+	botbbnunpinCmd.Flags().Float64VarP(&bbnunpinSizeFlag, "size", "s", 0.01, "Initial size")
 }
 
 func runBborder() {
 	client := client.NewSubRestClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"), os.Getenv("FTX_SUBACCOUNT"))
 	market := "BTC-PERP"
-	bb := bbnunpin.NewBbNunpin(client, market)
+	bb := bbnunpin.NewBbNunpin(client, market, bbnunpinSizeFlag)
 	bb.Run()
 }

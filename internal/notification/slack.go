@@ -8,12 +8,12 @@ import (
 )
 
 func Notify(message string) {
-	channel := "test"
+	channel := "general"
 	text := "<!channel> " + message + time.Now().Format(time.UnixDate)
 	jsonStr := `{"channel":"` + channel + `","text":"` + text + `"}`
 	req, err := http.NewRequest(
 		"POST",
-		"https://hooks.slack.com/services/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",
+		"https://hooks.slack.com/services/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",
 		bytes.NewBuffer([]byte(jsonStr)),
 	)
 	if err != nil {
