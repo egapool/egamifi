@@ -9,6 +9,7 @@ import (
 )
 
 var bbnunpinSizeFlag float64
+var bbnunpinMarketFlag string
 
 // researchpriceCmd represents the researchprice command
 var botbbnunpinCmd = &cobra.Command{
@@ -23,11 +24,11 @@ var botbbnunpinCmd = &cobra.Command{
 func init() {
 	botCmd.AddCommand(botbbnunpinCmd)
 	botbbnunpinCmd.Flags().Float64VarP(&bbnunpinSizeFlag, "size", "s", 0.01, "Initial size")
+	botbbnunpinCmd.Flags().StringVarP(&bbnunpinMarketFlag, "market", "m", "BTC-PERP", "Market name")
 }
 
 func runBborder() {
 	client := client.NewSubRestClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"), os.Getenv("FTX_SUBACCOUNT"))
-	market := "BTC-PERP"
-	bb := bbnunpin.NewBbNunpin(client, market, bbnunpinSizeFlag)
+	bb := bbnunpin.NewBbNunpin(client, bbnunpinMarketFlag, bbnunpinSizeFlag)
 	bb.Run()
 }

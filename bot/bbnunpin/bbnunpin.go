@@ -11,7 +11,6 @@ import (
 	"github.com/egapool/egamifi/internal/notification"
 	"github.com/go-numb/go-ftx/realtime"
 	"github.com/go-numb/go-ftx/rest"
-	"github.com/go-numb/go-ftx/rest/private/account"
 	"github.com/go-numb/go-ftx/rest/private/orders"
 	"github.com/go-numb/go-ftx/rest/public/markets"
 )
@@ -25,6 +24,9 @@ const (
 
 	// positionを持っているmode
 	Positioning mode = 2
+
+	// 損切り後逆方向トレンド継続中
+	Trending mode = 3
 )
 
 type side string
@@ -35,67 +37,75 @@ const (
 )
 
 type BbNunpin struct {
-	client    *rest.Client
-	market    string
-	mode      mode
-	orders    map[string]order
-	position  position
-	size      float64
-	limitSize float64
-	nunpinCnt int32
-}
-
-type order struct {
-	ID   string
-	side side
-}
-
-type position struct {
-	ID       int
-	side     string
-	size     float64
-	avgPrice float64
+	client   *rest.Client
+	market   string
+	mode     mode
+	orders   Orders
+	position position
+	// 初回エントリー縦玉数
+	initialSize float64
+	limitSize   float64
+	nunpinCnt   int32
+	// 足の幅
+	resolution int
+	// bbの基準値
+	middlePrice float64
+	volatility  float64
 }
 
 func NewBbNunpin(client *rest.Client, market string, size float64) *BbNunpin {
 	return &BbNunpin{
-		client:    client,
-		market:    market,
-		mode:      Normal,
-		size:      size,
-		limitSize: 0.06,
+		client:      client,
+		market:      market,
+		mode:        Normal,
+		initialSize: size,
+		limitSize:   0.04,
+		resolution:  60,
 	}
 }
 
-func (c *BbNunpin) Run() {
-	go c.continueOrders()
-	c.websocketRun()
-}
-
-func (b *BbNunpin) oppositeSide() string {
-	if b.position.side == "buy" {
-		return "sell"
-	} else {
-		return "buy"
-	}
+func (b *BbNunpin) Run() {
+	go b.continueOrders()
+	b.websocketRun()
 }
 
 func (b *BbNunpin) continueOrders() {
 	for {
-		if b.mode != Normal {
-			time.Sleep(time.Second * 30)
-			continue
-		}
-		b.cancelAll()
-		mf := b.fetchCandles()
+		// filter := b.emaFilter()
+		mf := b.fetchCandles(b.resolution)
 
-		// place bollinger order
-		_, upper, lower := indicators.BollingerBands(mf, 20, 2)
+		middle, upper, lower := indicators.BollingerBands(mf, 20, 2)
+		middle_price := middle[len(middle)-1:][0]
 		upper_price := upper[len(upper)-1:][0]
 		lower_price := lower[len(lower)-1:][0]
-		b.PlaceOrder(b.market, "sell", upper_price, b.size, 1)
-		b.PlaceOrder(b.market, "buy", lower_price, b.size, 1)
-		time.Sleep(time.Second * 30)
+		b.middlePrice = middle_price
+		// update volatility
+		b.volatility = (upper_price - middle_price) / 2
+
+		if b.mode != Normal {
+			time.Sleep(time.Second * (time.Duration(b.resolution) / 3))
+			continue
+		}
+
+		_, upper3, lower3 := indicators.BollingerBands(mf, 20, 3)
+		upper_price3 := upper3[len(upper3)-1:][0]
+		lower_price3 := lower3[len(lower3)-1:][0]
+
+		b.cancelAll()
+		// place bollinger order
+		go b.PlaceOrder(b.market, "buy", lower_price, b.initialSize)
+		go b.PlaceOrder(b.market, "sell", upper_price, b.initialSize)
+		go b.PlaceOrder(b.market, "buy", lower_price3, b.initialSize*3)
+		go b.PlaceOrder(b.market, "sell", upper_price3, b.initialSize*3)
+
+		// TODO 約定したらplace stop loss order
+		//bb3の外側volatility1つ分にstop loss orderいれる
+		time.Sleep(time.Second * (time.Duration(b.resolution) / 3))
+	}
+}
+
+func (b *BbNunpin) handler(side string, size float64, price float64) {
+	if b.mode == Normal {
 	}
 }
 
@@ -104,6 +114,16 @@ func (b *BbNunpin) cancelAll() {
 		ProductCode: b.market})
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+// 片方のオーダーをキャンセル
+func (b *BbNunpin) cancelOneSide(side string) {
+	for _, order := range b.orders.OneSide(side) {
+		_, err := b.client.CancelByID(&orders.RequestForCancelByID{OrderID: order.ID})
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -139,27 +159,26 @@ func (b *BbNunpin) websocketRun() {
 			case realtime.FILLS:
 				fmt.Printf("%s	%+v\n", "FILLS", v.Fills)
 				if b.mode == Normal {
-					notification.Notify("ポジション開始")
-					Log("ポジションを持ちました", v.Fills.Side, "Size:", v.Fills.Size, "Price:", v.Fills.Price)
-					Log("一旦注文中のオーダーを全て閉じます")
-					b.cancelAll()
+					notification.Notify("ポジション開始", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
+					Log("約定", "ポジションを持ちました", v.Fills.Side, "Size:", v.Fills.Size, "Price:", v.Fills.Price)
+					Log("反対側のオーダーを閉じます")
 					b.mode = Positioning
-					b.updatePosition()
+					b.updatePosition(v.Fills.Side, v.Fills.Size, v.Fills.Price)
+					b.cancelOneSide(b.position.oppositeSide())
 
 					// 決済用
 					b.placeSettleOrder(v.Fills.Price, v.Fills.Size)
 
-					// ナンピン用
-					b.placeNunpinOrder(v.Fills.Side, v.Fills.Price, v.Fills.Size)
+					// 損切り用
 				} else if b.mode == Positioning {
 
 					// ナンピン
 					if v.Fills.Side == b.position.side {
-						notification.Notify("約定")
-						Log("ナンピンしました", v.Fills.Side, "Size: ", v.Fills.Size, "Price: ", v.Fills.Price)
+						notification.Notify("約定", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
+						Log("約定", "ナンピンしました", v.Fills.Side, "Size: ", v.Fills.Size, "Price: ", v.Fills.Price)
 						fmt.Println("一旦注文中のオーダーを全て閉じます")
 						b.cancelAll()
-						b.updatePosition()
+						b.updatePosition(v.Fills.Side, v.Fills.Size, v.Fills.Price)
 						Log("合計ポジション", b.position.side, "Size:", b.position.size, "AveragePrice:", b.position.avgPrice)
 
 						// 決済用
@@ -172,19 +191,18 @@ func (b *BbNunpin) websocketRun() {
 					} else {
 						// 完全約定
 						if v.Fills.Size == b.position.size {
-							notification.Notify("完全約定")
-							Log("決済しました", v.Fills.Side, "Size:", v.Fills.Size, "Price:", v.Fills.Price)
+							notification.Notify("完全約定", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
+							Log("約定", "決済しました", v.Fills.Side, "Size:", v.Fills.Size, "Price:", v.Fills.Price)
 							Log("一旦注文中のオーダーを全て閉じます")
 							b.cancelAll()
 							b.resetPosition()
 							b.mode = Normal
-							Log("ボリンジャーバンドにオーダーを出し続けます...")
 
 							// 部分約定
 						} else {
-							notification.Notify("部分約定")
-							b.updatePosition()
-							Log("決済オーダーに対して部分約定しました", v.Fills.Side, "TotalSize:", b.position.size, "部分約定Size", v.Fills.Size)
+							notification.Notify("部分約定", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
+							b.updatePosition(v.Fills.Side, v.Fills.Size, v.Fills.Price)
+							Log("約定", "決済オーダーに対して部分約定しました", v.Fills.Side, "TotalSize:", b.position.size, "部分約定Size", v.Fills.Size)
 						}
 					}
 				}
@@ -197,13 +215,13 @@ func (b *BbNunpin) websocketRun() {
 
 }
 
-func (c *BbNunpin) fetchCandles() indicators.Mfloat {
+func (c *BbNunpin) fetchCandles(resolution int) indicators.Mfloat {
 	var mf indicators.Mfloat
 
 	req := &markets.RequestForCandles{
 		ProductCode: c.market,
-		Resolution:  60,
-		Limit:       40,
+		Resolution:  int(time.Duration(resolution)),
+		Limit:       80,
 	}
 	candles, err := c.client.Candles(req)
 	if err != nil {
@@ -223,70 +241,96 @@ func (b *BbNunpin) placeNunpinOrder(side string, base_price float64, base_size f
 	}
 	b.nunpinCnt++
 
-	magnification := 0.5
+	magnification := 0.2
+	diff_price := float64(25 * b.nunpinCnt)
 
 	if side == "buy" {
-		base_price = base_price - 150
+		base_price = base_price - diff_price
 	} else {
-		base_price = base_price + 150
+		base_price = base_price + diff_price
 	}
-	b.PlaceOrder(b.market, b.position.side, base_price, base_size*magnification, 1)
-	Log("ナンピン用オーダー", b.position.side, "Size:", base_size*magnification, "Price:", base_price)
+	b.PlaceOrder(b.market, b.position.side, base_price, base_size*magnification)
+	Log("注文", "ナンピン用オーダー", b.position.side, "Size:", base_size*magnification, "Price:", base_price)
 }
 
-func (b *BbNunpin) placeSettleOrder(base_price float64, base_size float64) {
+func (b *BbNunpin) placeSettleOrder(price float64, base_size float64) {
+	var division_num float64 = 4
 
-	order_side := b.oppositeSide()
-	var close_price float64
-	if order_side == "buy" {
-		close_price = base_price - 100
-	} else {
-		close_price = base_price + 100
+	order_side := b.position.oppositeSide()
+	price_range := (b.middlePrice - price) / division_num // 中央線までの4分割幅
+	division_size := base_size / division_num
+	for i := 0; i < int(division_num); i++ {
+		price = price + price_range
+		b.PlaceOrder(b.market, order_side, price, division_size)
 	}
-	b.PlaceOrder(b.market, order_side, close_price, base_size, 1)
-	Log("決済用オーダー", order_side, "Size:", base_size, "Price:", close_price)
+	// Log("注文", "決済用オーダー", order_side, "Size:", base_size, "Price:", close_price)
 }
 
-func (c *BbNunpin) PlaceOrder(market string, side string, price float64, lot float64, quantity int) {
-	base_price := price
-	for i := 0; i < quantity; i++ {
-		req := &orders.RequestForPlaceOrder{
-			Market: market,
-			Type:   "limit",
-			Side:   side,
-			Price:  base_price,
-			Size:   lot,
-			Ioc:    false}
-		_, err := c.client.PlaceOrder(req)
-		if err != nil {
-			log.Fatal(err)
-		}
-		// fmt.Println(res)
-		if side == "sell" {
-			base_price = base_price * 1.002
-		} else {
-			base_price = base_price - (base_price * 0.002)
-		}
-	}
-}
-
-func (b *BbNunpin) updatePosition() {
-	positions, err := b.client.Positions(&account.RequestForPositions{})
+func (c *BbNunpin) PlaceOrder(market string, side string, price float64, lot float64) {
+	req := &orders.RequestForPlaceOrder{
+		Market: market,
+		Type:   "limit",
+		Side:   side,
+		Price:  price,
+		Size:   lot,
+		Ioc:    false}
+	o, err := c.client.PlaceOrder(req)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for _, p := range *positions {
-		fmt.Println(p)
-		if p.Future == b.market {
-			b.position = position{
-				side:     p.Side,
-				size:     p.Size,
-				avgPrice: p.EntryPrice,
-			}
+	c.orders[o.ID] = Order{
+		ID:   o.ID,
+		side: o.Side,
+		size: o.Size}
+	fmt.Println(c.orders)
+}
+
+func (b *BbNunpin) PlaceStopLossOrder(market string, side string, lot float64) {
+
+}
+
+func (b *BbNunpin) updatePosition(side string, size float64, price float64) {
+	if b.position.size == 0 {
+		b.position = position{
+			side:     side,
+			size:     size,
+			avgPrice: price,
 		}
+		return
 	}
+	if b.position.side != side {
+		log.Fatal("positionの更新でエラー")
+	}
+	b.position.avgPrice = (b.position.size*b.position.avgPrice + size*price) / (b.position.size + size)
+	b.position.size = b.position.size + size
+	// positions, err := b.client.Positions(&account.RequestForPositions{})
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// for _, p := range *positions {
+	// 	fmt.Println(p)
+	// 	if p.Future == b.market {
+	// 		b.position = position{
+	// 			side:     p.Side,
+	// 			size:     p.Size,
+	// 			avgPrice: p.EntryPrice,
+	// 		}
+	// 	}
+	// }
 }
 
 func (b *BbNunpin) resetPosition() {
 	b.position = position{}
+}
+
+// 15分足EMAの直近の傾斜を返す
+func (b *BbNunpin) emaFilter() string {
+	mf := b.fetchCandles(900)
+	ema := mf.EMA(20)
+	last := ema[len(ema)-2:]
+	if last[1]/last[0] >= 1 {
+		return "buy"
+	} else {
+		return "sell"
+	}
 }
