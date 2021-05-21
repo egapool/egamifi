@@ -22,9 +22,9 @@ func main() {
 	long_ask_size := 0.0
 	short_bid := 0.0
 	short_bid_size := 0.0
-	client := client.NewSubRestClient("0326")
-	future := "SHIT"
-	crossorder := strategy.NewCrossOrder(client, -20.00, future+"-0625", future+"-PERP")
+	client := client.NewSubRestClient("shit")
+	future := "TRU"
+	crossorder := strategy.NewCrossOrder(client, 0.0535, future+"-0625", future+"-PERP")
 	go realtime.Connect(ctx, ch, []string{"ticker"}, []string{crossorder.Long, crossorder.Short}, nil)
 	for {
 		select {
@@ -48,12 +48,13 @@ func main() {
 				if short_bid == 0.0 || long_ask == 0.0 {
 					continue
 				}
-				diff := (long_ask - short_bid) * 2 / (long_ask + short_bid)
-				fmt.Printf("%.5f %.2f %s ask %.3f (%.3f) / %s bid %.3f (%.3f) %s\n", diff, long_ask-short_bid, crossorder.Long, long_ask, long_ask_size, crossorder.Short, short_bid, short_bid_size, time.Now().Format(time.UnixDate))
+				// diff := (long_ask - short_bid) * 2 / (long_ask + short_bid)
+				diff := (long_ask - short_bid) / short_bid
+				fmt.Printf("%.5f %.4f %s ask %.4f (%.3f) / %s bid %.4f (%.3f) %s\n", diff, long_ask-short_bid, crossorder.Long, long_ask, long_ask_size, crossorder.Short, short_bid, short_bid_size, time.Now().Format(time.UnixDate))
 
 				if crossorder.ShouldEntery(diff) {
 					var size float64
-					notification.Notify(fmt.Sprintf("%f", diff))
+					notification.Notify(fmt.Sprintf("%f", diff), "general", "https://hooks.slack.com/services/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")
 					if long_ask_size < short_bid_size {
 						size = long_ask_size
 					} else {

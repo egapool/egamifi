@@ -16,7 +16,6 @@ import (
 
 const (
 	exchangerName string = "ftx"
-	resolution           = 3600
 )
 
 // SaveOhlcUsecase
@@ -34,8 +33,9 @@ func NewSaveOhlcUsecase(ohlcrepo repository.OhlcRepository) *SaveOhlcUsecase {
 	}
 }
 
-func (uc *SaveOhlcUsecase) SaveOhlc(market string) {
+func (uc *SaveOhlcUsecase) SaveOhlc(market string, resolution int) {
 	latest := uc.ohlcrepo.Latest(market, exchangerName, resolution)
+	fmt.Println(latest)
 	var start int64
 	if !latest.Empty() {
 		start = latest.StartTime.Add(time.Second).Unix()
@@ -76,7 +76,7 @@ func (uc *SaveOhlcUsecase) SaveOhlc(market string) {
 	uc.ohlcrepo.BulkStore(bulk)
 }
 
-func (uc *SaveOhlcUsecase) SaveAllOhlcs() {
+func (uc *SaveOhlcUsecase) SaveAllOhlcs(resolution int) {
 	// market fetch
 	futures, err := uc.client.Markets(&markets.RequestForMarkets{})
 	if err != nil {
@@ -91,7 +91,7 @@ func (uc *SaveOhlcUsecase) SaveAllOhlcs() {
 		if strings.Contains(market.Name, "MOVE") {
 			continue
 		}
-		uc.SaveOhlc(market.Name)
+		uc.SaveOhlc(market.Name, resolution)
 	}
 
 }

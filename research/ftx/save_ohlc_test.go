@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/egapool/egamifi/database"
+	"github.com/egapool/egamifi/domain"
 	"github.com/egapool/egamifi/repository"
 
 	"github.com/joho/godotenv"
@@ -19,8 +20,8 @@ func TestCompute(t *testing.T) {
 
 	repo := repository.NewOhlcRepository()
 	usecase := NewSaveOhlcUsecase(*repo)
-	// market := "ATOM-0326"
+	market := "ATOM-PERP"
 	// fmt.Println(market)
-	// usecase.SaveOhlc(market)
-	usecase.SaveAllOhlcs()
+	usecase.SaveOhlc(market, domain.Resolution_60)
+	// usecase.SaveAllOhlcs()
 }

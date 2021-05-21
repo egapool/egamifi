@@ -2,6 +2,8 @@ package domain
 
 import "time"
 
+const Resolution_60 int = 60
+
 type Ohlc struct {
 	ID         uint      `json:"id"`
 	Market     string    `json:"market"`

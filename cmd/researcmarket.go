@@ -57,7 +57,7 @@ LBL1:
 			if m.Name == marketFlag {
 				// notify slack
 				msg := m.Name + " が新規オープンしました"
-				notification.Notify(msg)
+				notification.Notify(msg, os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
 				fmt.Println(msg)
 				break LBL1
 			}
