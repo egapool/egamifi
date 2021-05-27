@@ -1,5 +1,7 @@
 package bbnunpin
 
+import "errors"
+
 type Order struct {
 	ID      int
 	side    string
@@ -27,4 +29,13 @@ func (o Orders) OneSide(side string) Orders {
 		}
 	}
 	return orders
+}
+
+func (o Orders) StopLossOrder() (*Order, error) {
+	for _, order := range o {
+		if order.purpose == StopLossOrder {
+			return &order, nil
+		}
+	}
+	return nil, errors.New("noting")
 }

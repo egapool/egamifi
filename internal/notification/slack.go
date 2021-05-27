@@ -7,12 +7,24 @@ import (
 	"time"
 )
 
-func Notify(message string, channel string, url string) {
+type Notifer struct {
+	Channel string
+	Url     string
+}
+
+func NewNotifer(channel string, url string) *Notifer {
+	return &Notifer{
+		Channel: channel,
+		Url:     url,
+	}
+}
+
+func (n *Notifer) Notify(message string) {
 	text := "<!channel> " + message + time.Now().Format(time.UnixDate)
-	jsonStr := `{"channel":"` + channel + `","text":"` + text + `"}`
+	jsonStr := `{"channel":"` + n.Channel + `","text":"` + text + `"}`
 	req, err := http.NewRequest(
 		"POST",
-		url,
+		n.Url,
 		bytes.NewBuffer([]byte(jsonStr)),
 	)
 	if err != nil {
