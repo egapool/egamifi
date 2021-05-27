@@ -14,3 +14,11 @@ func (p *position) oppositeSide() string {
 		return "buy"
 	}
 }
+
+func (p *position) stopLossPrice(priceRange float64) float64 {
+	if p.side == "buy" {
+		return p.avgPrice - priceRange
+	} else {
+		return p.avgPrice + priceRange
+	}
+}

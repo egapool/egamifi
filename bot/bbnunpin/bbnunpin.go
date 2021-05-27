@@ -61,6 +61,7 @@ func NewBbNunpin(client *rest.Client, market string, size float64) *BbNunpin {
 		initialSize: size,
 		limitSize:   0.04,
 		resolution:  60,
+		orders:      Orders{},
 	}
 }
 
@@ -93,10 +94,10 @@ func (b *BbNunpin) continueOrders() {
 
 		b.cancelAll()
 		// place bollinger order
-		go b.PlaceOrder(b.market, "buy", lower_price, b.initialSize)
-		go b.PlaceOrder(b.market, "sell", upper_price, b.initialSize)
-		go b.PlaceOrder(b.market, "buy", lower_price3, b.initialSize*3)
-		go b.PlaceOrder(b.market, "sell", upper_price3, b.initialSize*3)
+		b.PlaceOrder(b.market, "buy", lower_price, b.initialSize, InitOrder)
+		b.PlaceOrder(b.market, "sell", upper_price, b.initialSize, InitOrder)
+		b.PlaceOrder(b.market, "buy", lower_price3, b.initialSize*3, NunpinOrder)
+		b.PlaceOrder(b.market, "sell", upper_price3, b.initialSize*3, NunpinOrder)
 
 		// TODO 約定したらplace stop loss order
 		//bb3の外側volatility1つ分にstop loss orderいれる
@@ -104,16 +105,69 @@ func (b *BbNunpin) continueOrders() {
 	}
 }
 
-func (b *BbNunpin) handler(side string, size float64, price float64) {
-	if b.mode == Normal {
+func (b *BbNunpin) handler(orderID int, side string, size float64, price float64) {
+	switch orderID {
+	case int(InitOrder):
+		b.handleStartPosition(side, size, price)
+	case int(NunpinOrder):
+		b.handleNunpin(side, size, price)
+	case int(SettleOrder):
+		// some
+	case int(StopLossOrder):
+		b.handleStopLoss(side, size, price)
 	}
 }
 
+// ポジションスタート
+func (b *BbNunpin) handleStartPosition(side string, size float64, price float64) {
+	notification.Notify("ポジション開始", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
+	Log("約定", "ポジションを持ちました", side, "Size:", size, "Price:", price)
+	Log("反対側のオーダーを閉じます")
+	b.mode = Positioning
+	b.updatePosition(side, size, price)
+	b.cancelOneSide(b.position.oppositeSide())
+
+	// 決済用
+	b.placeSettleOrder(price, size)
+
+	// 損切り用
+	b.PlaceStopLossOrder(b.volatility * 2)
+}
+
+// ナンピン注文約定
+// TODO ナンピンが部分約定の時の対応が必要
+func (b *BbNunpin) handleNunpin(side string, size float64, price float64) {
+	notification.Notify("約定", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
+	Log("約定", "ナンピンしました", side, "Size: ", size, "Price: ", price)
+	fmt.Println("一旦注文中のオーダーを全て閉じます")
+	b.cancelAll()
+	b.updatePosition(side, size, price)
+	Log("合計ポジション", b.position.side, "Size:", b.position.size, "AveragePrice:", b.position.avgPrice)
+
+	// 決済用
+	// TODO ナンピン後の決済注文どうやってさすか
+	b.placeSettleOrder(b.position.avgPrice, b.position.size)
+	// 損切り用
+	b.PlaceStopLossOrder(b.volatility)
+}
+
+// 決済注文約定
+func (b *BbNunpin) handleSettle(side string, size float64, price float64) {
+
+}
+
+// 損切り注文約定
+func (b *BbNunpin) handleStopLoss(side string, size float64, price float64) {
+
+}
+
 func (b *BbNunpin) cancelAll() {
-	_, err := b.client.CancelAll(&orders.RequestForCancelAll{
-		ProductCode: b.market})
-	if err != nil {
-		log.Fatal(err)
+	for _, order := range b.orders {
+		_, err := b.client.CancelByID(&orders.RequestForCancelByID{OrderID: order.ID})
+		delete(b.orders, order.ID)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -121,6 +175,7 @@ func (b *BbNunpin) cancelAll() {
 func (b *BbNunpin) cancelOneSide(side string) {
 	for _, order := range b.orders.OneSide(side) {
 		_, err := b.client.CancelByID(&orders.RequestForCancelByID{OrderID: order.ID})
+		delete(b.orders, order.ID)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -158,34 +213,13 @@ func (b *BbNunpin) websocketRun() {
 
 			case realtime.FILLS:
 				fmt.Printf("%s	%+v\n", "FILLS", v.Fills)
+				b.handler(v.Fills.OrderID, v.Fills.Side, v.Fills.Size, v.Fills.Price)
 				if b.mode == Normal {
-					notification.Notify("ポジション開始", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
-					Log("約定", "ポジションを持ちました", v.Fills.Side, "Size:", v.Fills.Size, "Price:", v.Fills.Price)
-					Log("反対側のオーダーを閉じます")
-					b.mode = Positioning
-					b.updatePosition(v.Fills.Side, v.Fills.Size, v.Fills.Price)
-					b.cancelOneSide(b.position.oppositeSide())
-
-					// 決済用
-					b.placeSettleOrder(v.Fills.Price, v.Fills.Size)
-
-					// 損切り用
-				} else if b.mode == Positioning {
+					// } else if b.mode == Positioning {
+				} else if false {
 
 					// ナンピン
 					if v.Fills.Side == b.position.side {
-						notification.Notify("約定", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
-						Log("約定", "ナンピンしました", v.Fills.Side, "Size: ", v.Fills.Size, "Price: ", v.Fills.Price)
-						fmt.Println("一旦注文中のオーダーを全て閉じます")
-						b.cancelAll()
-						b.updatePosition(v.Fills.Side, v.Fills.Size, v.Fills.Price)
-						Log("合計ポジション", b.position.side, "Size:", b.position.size, "AveragePrice:", b.position.avgPrice)
-
-						// 決済用
-						b.placeSettleOrder(b.position.avgPrice, b.position.size)
-
-						// ナンピン用
-						b.placeNunpinOrder(v.Fills.Side, b.position.avgPrice, b.position.size)
 
 						// 決済
 					} else {
@@ -233,25 +267,25 @@ func (c *BbNunpin) fetchCandles(resolution int) indicators.Mfloat {
 	return mf
 }
 
-func (b *BbNunpin) placeNunpinOrder(side string, base_price float64, base_size float64) {
-
-	// ポジション上限を超えている場合は何もしない
-	if b.position.size > b.limitSize {
-		return
-	}
-	b.nunpinCnt++
-
-	magnification := 0.2
-	diff_price := float64(25 * b.nunpinCnt)
-
-	if side == "buy" {
-		base_price = base_price - diff_price
-	} else {
-		base_price = base_price + diff_price
-	}
-	b.PlaceOrder(b.market, b.position.side, base_price, base_size*magnification)
-	Log("注文", "ナンピン用オーダー", b.position.side, "Size:", base_size*magnification, "Price:", base_price)
-}
+// func (b *BbNunpin) placeNunpinOrder(side string, base_price float64, base_size float64) {
+//
+// 	// ポジション上限を超えている場合は何もしない
+// 	if b.position.size > b.limitSize {
+// 		return
+// 	}
+// 	b.nunpinCnt++
+//
+// 	magnification := 0.2
+// 	diff_price := float64(25 * b.nunpinCnt)
+//
+// 	if side == "buy" {
+// 		base_price = base_price - diff_price
+// 	} else {
+// 		base_price = base_price + diff_price
+// 	}
+// 	b.PlaceOrder(b.market, b.position.side, base_price, base_size*magnification)
+// 	Log("注文", "ナンピン用オーダー", b.position.side, "Size:", base_size*magnification, "Price:", base_price)
+// }
 
 func (b *BbNunpin) placeSettleOrder(price float64, base_size float64) {
 	var division_num float64 = 4
@@ -261,12 +295,12 @@ func (b *BbNunpin) placeSettleOrder(price float64, base_size float64) {
 	division_size := base_size / division_num
 	for i := 0; i < int(division_num); i++ {
 		price = price + price_range
-		b.PlaceOrder(b.market, order_side, price, division_size)
+		b.PlaceOrder(b.market, order_side, price, division_size, SettleOrder)
 	}
 	// Log("注文", "決済用オーダー", order_side, "Size:", base_size, "Price:", close_price)
 }
 
-func (c *BbNunpin) PlaceOrder(market string, side string, price float64, lot float64) {
+func (c *BbNunpin) PlaceOrder(market string, side string, price float64, lot float64, purpose purpose) {
 	req := &orders.RequestForPlaceOrder{
 		Market: market,
 		Type:   "limit",
@@ -279,14 +313,32 @@ func (c *BbNunpin) PlaceOrder(market string, side string, price float64, lot flo
 		log.Fatal(err)
 	}
 	c.orders[o.ID] = Order{
-		ID:   o.ID,
-		side: o.Side,
-		size: o.Size}
+		ID:      o.ID,
+		side:    o.Side,
+		size:    o.Size,
+		purpose: purpose,
+	}
 	fmt.Println(c.orders)
 }
 
-func (b *BbNunpin) PlaceStopLossOrder(market string, side string, lot float64) {
-
+func (b *BbNunpin) PlaceStopLossOrder(price_range float64) {
+	req := &orders.RequestForPlaceTriggerOrder{
+		Market:       b.market,
+		Type:         "stop",
+		Side:         b.position.oppositeSide(),
+		TriggerPrice: b.position.stopLossPrice(price_range),
+		Size:         b.position.size}
+	o, err := b.client.PlaceTriggerOrder(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	b.orders[o.ID] = Order{
+		ID:      o.ID,
+		side:    o.Side,
+		size:    o.Size,
+		purpose: StopLossOrder,
+	}
+	fmt.Println(b.orders)
 }
 
 func (b *BbNunpin) updatePosition(side string, size float64, price float64) {

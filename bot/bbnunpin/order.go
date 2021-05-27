@@ -1,15 +1,26 @@
 package bbnunpin
 
 type Order struct {
-	ID   int
-	side string
-	size float64
+	ID      int
+	side    string
+	size    float64
+	purpose purpose
 }
+
+// オーダーの目的
+type purpose int
+
+const (
+	InitOrder     purpose = 1
+	NunpinOrder   purpose = 2
+	SettleOrder   purpose = 3
+	StopLossOrder purpose = 4
+)
 
 type Orders map[int]Order
 
 func (o Orders) OneSide(side string) Orders {
-	var orders Orders
+	orders := Orders{}
 	for _, order := range o {
 		if order.side == side {
 			orders[order.ID] = order

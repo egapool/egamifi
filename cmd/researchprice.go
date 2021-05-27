@@ -18,8 +18,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/egapool/egamifi/repository"
-	"github.com/egapool/egamifi/research/ftx"
 	"github.com/spf13/cobra"
 )
 
@@ -61,12 +59,12 @@ func init() {
 }
 
 func saveOhlsc() {
-	repo := repository.NewOhlcRepository()
-	usecase := ftx.NewSaveOhlcUsecase(*repo)
-	usecase.SaveOhlc(priceMarketFlag)
+	// repo := repository.NewOhlcRepository()
+	// usecase := ftx.NewSaveOhlcUsecase(*repo)
+	// usecase.SaveOhlc(priceMarketFlag)
 }
 func saveAllOhlsc() {
-	repo := repository.NewOhlcRepository()
-	usecase := ftx.NewSaveOhlcUsecase(*repo)
-	usecase.SaveAllOhlcs()
+	// repo := repository.NewOhlcRepository()
+	// usecase := ftx.NewSaveOhlcUsecase(*repo)
+	// usecase.SaveAllOhlcs()
 }
