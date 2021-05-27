@@ -36,6 +36,10 @@ const (
 	SELL side = "sell"
 )
 
+type notifer interface {
+	Notify(message string)
+}
+
 type BbNunpin struct {
 	client   *rest.Client
 	market   string
@@ -51,10 +55,16 @@ type BbNunpin struct {
 	// bbの基準値
 	middlePrice float64
 	volatility  float64
-	notifer     *notification.Notifer
+	notifer     notifer
 }
 
 func NewBbNunpin(client *rest.Client, market string, size float64) *BbNunpin {
+	var n notifer
+	if os.Getenv("SLACK_CHANNEL") == "" {
+		n = notification.NewNone()
+	} else {
+		n = notification.NewNotifer(os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
+	}
 	return &BbNunpin{
 		client:      client,
 		market:      market,
@@ -63,7 +73,7 @@ func NewBbNunpin(client *rest.Client, market string, size float64) *BbNunpin {
 		limitSize:   0.04,
 		resolution:  60,
 		orders:      Orders{},
-		notifer:     notification.NewNotifer(os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK")),
+		notifer:     n,
 	}
 }
 
