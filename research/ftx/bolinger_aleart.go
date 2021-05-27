@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/egapool/egamifi/internal/indicators"
-	"github.com/egapool/egamifi/internal/notification"
 	"github.com/go-numb/go-ftx/rest"
 	"github.com/go-numb/go-ftx/rest/public/markets"
 )
@@ -41,13 +40,13 @@ func (b *BolingerAlert) Run() {
 		border := 500.0
 		if u < border {
 			msg := fmt.Sprintf("上ボリンジャーまで `$%f` 切ってます", u)
-			notification.Notify(msg, "game", "https://hooks.slack.com/services/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")
+			// notification.Notify(msg, "game", "https://hooks.slack.com/services/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")
 			fmt.Println(msg)
 			b.alertTime = time.Now()
 			fmt.Println(b.alertTime)
 		} else if l < border {
 			msg := fmt.Sprintf("下ボリンジャーまで `$%f` 切ってます", l)
-			notification.Notify(msg, "game", "https://hooks.slack.com/services/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")
+			// notification.Notify(msg, "game", "https://hooks.slack.com/services/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")
 			fmt.Println(msg)
 			b.alertTime = time.Now()
 			fmt.Println(b.alertTime)

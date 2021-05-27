@@ -22,7 +22,6 @@ import (
 	"time"
 
 	client "github.com/egapool/egamifi/exchanger/ftx"
-	"github.com/egapool/egamifi/internal/notification"
 	"github.com/go-numb/go-ftx/rest/public/markets"
 	"github.com/spf13/cobra"
 )
@@ -57,7 +56,7 @@ LBL1:
 			if m.Name == marketFlag {
 				// notify slack
 				msg := m.Name + " が新規オープンしました"
-				notification.Notify(msg, os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
+				// notification.Notify(msg, os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
 				fmt.Println(msg)
 				break LBL1
 			}
