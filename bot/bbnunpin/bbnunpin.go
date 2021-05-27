@@ -95,8 +95,11 @@ func (b *BbNunpin) continueOrders() {
 		b.cancelAll()
 		// place bollinger order
 		b.PlaceOrder(b.market, "buy", lower_price, b.initialSize, InitOrder)
+		time.Sleep(time.Microsecond * 50)
 		b.PlaceOrder(b.market, "sell", upper_price, b.initialSize, InitOrder)
+		time.Sleep(time.Microsecond * 50)
 		b.PlaceOrder(b.market, "buy", lower_price3, b.initialSize*3, NunpinOrder)
+		time.Sleep(time.Microsecond * 50)
 		b.PlaceOrder(b.market, "sell", upper_price3, b.initialSize*3, NunpinOrder)
 
 		// TODO 約定したらplace stop loss order
@@ -213,7 +216,7 @@ func (b *BbNunpin) websocketRun() {
 	defer cancel()
 
 	ch := make(chan realtime.Response)
-	go realtime.ConnectForPrivate(ctx, ch, os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"), []string{"orders", "fills"}, nil, os.Getenv("FTX_SUBACCOUNT"))
+	go realtime.ConnectForPrivate(ctx, ch, os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"), []string{"fills"}, nil, os.Getenv("FTX_SUBACCOUNT"))
 
 	for {
 		select {
@@ -240,32 +243,6 @@ func (b *BbNunpin) websocketRun() {
 			case realtime.FILLS:
 				fmt.Printf("%s	%+v\n", "FILLS", v.Fills)
 				b.handler(v.Fills.OrderID, v.Fills.Side, v.Fills.Size, v.Fills.Price)
-				if b.mode == Normal {
-					// } else if b.mode == Positioning {
-				} else if false {
-
-					// ナンピン
-					if v.Fills.Side == b.position.side {
-
-						// 決済
-					} else {
-						// 完全約定
-						if v.Fills.Size == b.position.size {
-							notification.Notify("完全約定", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
-							Log("約定", "決済しました", v.Fills.Side, "Size:", v.Fills.Size, "Price:", v.Fills.Price)
-							Log("一旦注文中のオーダーを全て閉じます")
-							b.cancelAll()
-							b.resetPosition()
-							b.mode = Normal
-
-							// 部分約定
-						} else {
-							notification.Notify("部分約定", os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
-							b.updatePosition(v.Fills.Side, v.Fills.Size, v.Fills.Price)
-							Log("約定", "決済オーダーに対して部分約定しました", v.Fills.Side, "TotalSize:", b.position.size, "部分約定Size", v.Fills.Size)
-						}
-					}
-				}
 
 			case realtime.UNDEFINED:
 				fmt.Printf("UNDEFINED %s	%s\n", v.Symbol, v.Results.Error())
@@ -292,26 +269,6 @@ func (c *BbNunpin) fetchCandles(resolution int) indicators.Mfloat {
 	}
 	return mf
 }
-
-// func (b *BbNunpin) placeNunpinOrder(side string, base_price float64, base_size float64) {
-//
-// 	// ポジション上限を超えている場合は何もしない
-// 	if b.position.size > b.limitSize {
-// 		return
-// 	}
-// 	b.nunpinCnt++
-//
-// 	magnification := 0.2
-// 	diff_price := float64(25 * b.nunpinCnt)
-//
-// 	if side == "buy" {
-// 		base_price = base_price - diff_price
-// 	} else {
-// 		base_price = base_price + diff_price
-// 	}
-// 	b.PlaceOrder(b.market, b.position.side, base_price, base_size*magnification)
-// 	Log("注文", "ナンピン用オーダー", b.position.side, "Size:", base_size*magnification, "Price:", base_price)
-// }
 
 func (b *BbNunpin) placeSettleOrder(price float64, base_size float64) {
 	var division_num float64 = 4
@@ -344,7 +301,6 @@ func (c *BbNunpin) PlaceOrder(market string, side string, price float64, lot flo
 		size:    o.Size,
 		purpose: purpose,
 	}
-	fmt.Println(c.orders)
 }
 
 func (b *BbNunpin) PlaceStopLossOrder(price_range float64) {
@@ -364,7 +320,6 @@ func (b *BbNunpin) PlaceStopLossOrder(price_range float64) {
 		size:    o.Size,
 		purpose: StopLossOrder,
 	}
-	fmt.Println(b.orders)
 }
 
 func (b *BbNunpin) updatePosition(side string, size float64, price float64) {
