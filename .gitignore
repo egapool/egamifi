@@ -2,3 +2,4 @@ vendor
 notebook/cache/*
 !.gitkeep
 .env
+bin/*
