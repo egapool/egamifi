@@ -80,8 +80,22 @@ func NewBbNunpin(client *rest.Client, market string, size float64) *BbNunpin {
 }
 
 func (b *BbNunpin) Run() {
+	b.cleanUp()
 	go b.continueOrders()
 	b.websocketRun()
+}
+
+// マーケットのオーダーをリセット
+func (b *BbNunpin) cleanUp() {
+	orders, err := b.client.OpenOrder(&orders.RequestForOpenOrder{
+		ProductCode: b.market,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, order := range *orders {
+		b.cancelOrder(order.ID)
+	}
 }
 
 func (b *BbNunpin) continueOrders() {
@@ -117,11 +131,11 @@ func (b *BbNunpin) continueOrders() {
 		if tick > middle_price {
 			b.PlaceOrder(b.market, "sell", upper_price, b.initialSize, InitOrder)
 			time.Sleep(time.Microsecond * 50)
-			b.PlaceOrder(b.market, "sell", upper_price3, b.initialSize*3, NunpinOrder)
+			b.PlaceOrder(b.market, "sell", upper_price3+(b.volatility*0.5), b.initialSize*3, NunpinOrder)
 		} else {
 			b.PlaceOrder(b.market, "buy", lower_price, b.initialSize, InitOrder)
 			time.Sleep(time.Microsecond * 50)
-			b.PlaceOrder(b.market, "buy", lower_price3, b.initialSize*3, NunpinOrder)
+			b.PlaceOrder(b.market, "buy", lower_price3-(b.volatility*0.5), b.initialSize*3, NunpinOrder)
 		}
 
 		time.Sleep(time.Second * (time.Duration(b.resolution) / 3))
@@ -158,7 +172,6 @@ func (b *BbNunpin) handleStartPosition(orderID int, side string, size float64, p
 }
 
 // ナンピン注文約定
-// TODO ナンピンが部分約定の時の対応が必要
 func (b *BbNunpin) handleNunpin(orderID int, side string, size float64, price float64) {
 	b.notifer.Notify("約定")
 	Log("約定", "ナンピンしました", side, "Size: ", size, "Price: ", price)
@@ -168,10 +181,9 @@ func (b *BbNunpin) handleNunpin(orderID int, side string, size float64, price fl
 	Log("合計ポジション", b.position.side, "Size:", b.position.size, "AveragePrice:", b.position.avgPrice)
 
 	// 決済用
-	// TODO ナンピン後の決済注文どうやってさすか
 	b.placeSettleOrder(b.position.avgPrice, b.position.size, division_num)
 	// 損切り用
-	b.PlaceStopLossOrder(b.volatility)
+	b.PlaceStopLossOrder(b.volatility * 1.5)
 
 	// 全決済したらordersから消す
 	delete(b.orders, orderID)
@@ -184,6 +196,11 @@ func (b *BbNunpin) handleSettle(orderID int, side string, size float64, price fl
 	b.updatePosition(side, size, price)
 
 	// TODO 一旦トレイリングストップは保留
+	// 損切り用
+	// r :=
+	// 	b.PlaceStopLossOrder(b.volatility)
+
+	// TODO どこまで決済したか、あるいは価格が移動したかでナンピン注文消すかどうか決める
 
 	b.updateStopLossOrder()
 
@@ -313,6 +330,8 @@ func (b *BbNunpin) placeSettleOrder(price float64, base_size float64, division_n
 		price_range = (b.lowerPrice - price) / division_num // BB下線までの分割幅
 	}
 	division_size := base_size / division_num
+
+	// TODO 端数が出ないようにポジションサイズを調整する
 	for i := 0; i < int(division_num); i++ {
 		price = price + price_range
 		b.PlaceOrder(b.market, order_side, price, division_size, SettleOrder)
@@ -361,7 +380,7 @@ func (b *BbNunpin) PlaceStopLossOrder(price_range float64) {
 		size:    o.Size,
 		purpose: StopLossOrder,
 	}
-	Log("損切りオーダーをだしました", b.orders[o.ID])
+	Log("損切りオーダーをだしました", b.orders[id])
 }
 
 func (b *BbNunpin) updateStopLossOrder() {
