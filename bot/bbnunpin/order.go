@@ -39,3 +39,13 @@ func (o Orders) StopLossOrder() (*Order, error) {
 	}
 	return nil, errors.New("noting")
 }
+
+func (o Orders) SettleOrder() Orders {
+	orders := Orders{}
+	for _, order := range o {
+		if order.purpose == SettleOrder {
+			orders[order.ID] = order
+		}
+	}
+	return orders
+}
