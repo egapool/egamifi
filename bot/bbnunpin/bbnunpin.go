@@ -36,6 +36,7 @@ const (
 	BUY  side = "buy"
 	SELL side = "sell"
 )
+const division_num = 4
 
 type notifer interface {
 	Notify(message string)
@@ -49,12 +50,13 @@ type BbNunpin struct {
 	position position
 	// 初回エントリー縦玉数
 	initialSize float64
-	limitSize   float64
 	nunpinCnt   int32
 	// 足の幅
 	resolution int
 	// bbの基準値
 	middlePrice float64
+	upperPrice  float64
+	lowerPrice  float64
 	volatility  float64
 	notifer     notifer
 }
@@ -71,7 +73,6 @@ func NewBbNunpin(client *rest.Client, market string, size float64) *BbNunpin {
 		market:      market,
 		mode:        Normal,
 		initialSize: size,
-		limitSize:   0.04,
 		resolution:  60,
 		orders:      Orders{},
 		notifer:     n,
@@ -94,6 +95,8 @@ func (b *BbNunpin) continueOrders() {
 		upper_price := upper[len(upper)-1:][0]
 		lower_price := lower[len(lower)-1:][0]
 		b.middlePrice = middle_price
+		b.upperPrice = upper_price
+		b.lowerPrice = lower_price
 		// update volatility
 		b.volatility = (upper_price - middle_price) / 2
 
@@ -121,8 +124,6 @@ func (b *BbNunpin) continueOrders() {
 			b.PlaceOrder(b.market, "buy", lower_price3, b.initialSize*3, NunpinOrder)
 		}
 
-		// TODO 約定したらplace stop loss order
-		//bb3の外側volatility1つ分にstop loss orderいれる
 		time.Sleep(time.Second * (time.Duration(b.resolution) / 3))
 	}
 }
@@ -168,7 +169,7 @@ func (b *BbNunpin) handleNunpin(orderID int, side string, size float64, price fl
 
 	// 決済用
 	// TODO ナンピン後の決済注文どうやってさすか
-	b.placeSettleOrder(b.position.avgPrice, b.position.size, 4)
+	b.placeSettleOrder(b.position.avgPrice, b.position.size, division_num)
 	// 損切り用
 	b.PlaceStopLossOrder(b.volatility)
 
@@ -305,7 +306,12 @@ func (c *BbNunpin) fetchCandles(resolution int) indicators.Mfloat {
 func (b *BbNunpin) placeSettleOrder(price float64, base_size float64, division_num float64) {
 
 	order_side := b.position.oppositeSide()
-	price_range := (b.middlePrice - price) / division_num // 中央線までの4分割幅
+	var price_range float64
+	if order_side == "sell" {
+		price_range = (b.upperPrice - price) / division_num // BB上線までの分割幅
+	} else {
+		price_range = (b.lowerPrice - price) / division_num // BB下線までの分割幅
+	}
 	division_size := base_size / division_num
 	for i := 0; i < int(division_num); i++ {
 		price = price + price_range
@@ -372,18 +378,24 @@ func (b *BbNunpin) updateStopLossOrder() {
 func (b *BbNunpin) updatePosition(side string, size float64, price float64) {
 	if b.position.size == 0 {
 		b.position = position{
-			side:     side,
-			size:     size,
-			avgPrice: price,
+			side:      side,
+			size:      size,
+			avgPrice:  price,
+			initPrice: price,
+			settleCnt: 0,
 		}
+		Log("ポジションを更新しました", b.position)
 		return
 	}
 	if b.position.side != side {
 		b.position.size = b.position.size - size
+		// 利確オーダーを何回食ったか
+		b.position.settleCnt = b.position.settleCnt + 1
 	} else {
 		b.position.avgPrice = (b.position.size*b.position.avgPrice + size*price) / (b.position.size + size)
 		b.position.size = b.position.size + size
 	}
+	Log("ポジションを更新しました", b.position)
 }
 
 func (b *BbNunpin) resetPosition() {

@@ -1,10 +1,11 @@
 package bbnunpin
 
 type position struct {
-	ID       int
-	side     string
-	size     float64
-	avgPrice float64
+	side      string
+	size      float64
+	avgPrice  float64
+	initPrice float64
+	settleCnt int
 }
 
 func (p *position) oppositeSide() string {
