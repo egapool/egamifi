@@ -1,5 +1,6 @@
 vendor
 notebook/cache/*
+data/*
 !.gitkeep
 .env
 bin/*
