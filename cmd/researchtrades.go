@@ -77,10 +77,14 @@ func getTrades() {
 			log.Fatal(err)
 		}
 		for _, t := range *trades {
+			localTime := t.Time.In(jst)
+			fmt.Println(endUnixtime, startUnixtime, localTime.Unix())
+			if startUnixtime >= localTime.Unix() || len(*trades) < 200 {
+				isFin = true
+			}
 			if lastID != 0 && t.ID >= lastID {
 				continue
 			}
-			localTime := t.Time.In(jst)
 			writer.Write([]string{
 				tradeMarketFlag,
 				localTime.Format("2006-01-02 15:04:05.00000"),
@@ -91,9 +95,6 @@ func getTrades() {
 			})
 			lastID = t.ID
 			endUnixtime = localTime.Unix()
-			if startUnixtime >= localTime.Unix() {
-				isFin = true
-			}
 		}
 		writer.Flush()
 		if isFin {
