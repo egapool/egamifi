@@ -57,7 +57,8 @@ func getTrades() {
 
 	dir := "data"
 	filename := fmt.Sprintf("ftx-trades-%s-%s.csv", endTime.Format("20060102150405"), startTime.Format("20060102150405"))
-	file, err := os.OpenFile(dir+"/"+filename, os.O_WRONLY|os.O_CREATE, 0600)
+	filepath := dir + "/" + filename
+	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -77,8 +78,12 @@ func getTrades() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		var firstTime int64
 		for _, t := range *trades {
 			localTime := t.Time.In(jst)
+			if firstTime == 0 {
+				firstTime = localTime.Unix()
+			}
 			if startUnixtime >= localTime.Unix() || len(*trades) < 200 {
 				isFin = true
 			}
@@ -97,6 +102,10 @@ func getTrades() {
 			lastID = t.ID
 			endUnixtime = localTime.Unix()
 		}
+		// 1秒で200以上約定がある場合はしかたなく、次の秒にいく
+		if firstTime == endUnixtime {
+			endUnixtime--
+		}
 		writer.Flush()
 		if isFin {
 			break
@@ -105,4 +114,5 @@ func getTrades() {
 	for i := len(line) - 1; i >= 0; i-- {
 		writer.Write(line[i])
 	}
+	fmt.Println(filepath)
 }
