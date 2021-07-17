@@ -66,6 +66,7 @@ func getTrades() {
 	writer := csv.NewWriter(file)
 	var lastID int = 0
 	isFin := false
+	var line [][]string
 	for {
 		trades, err := client.Trades(&markets.RequestForTrades{
 			ProductCode: tradeMarketFlag,
@@ -78,18 +79,18 @@ func getTrades() {
 		}
 		for _, t := range *trades {
 			localTime := t.Time.In(jst)
-			fmt.Println(endUnixtime, startUnixtime, localTime.Unix())
 			if startUnixtime >= localTime.Unix() || len(*trades) < 200 {
 				isFin = true
 			}
 			if lastID != 0 && t.ID >= lastID {
 				continue
 			}
-			writer.Write([]string{
+			line = append(line, []string{
 				tradeMarketFlag,
 				localTime.Format("2006-01-02 15:04:05.00000"),
 				t.Side,
 				fmt.Sprint(t.Size),
+				fmt.Sprint(t.Price),
 				fmt.Sprint(t.Liquidation),
 				fmt.Sprint(t.ID),
 			})
@@ -100,5 +101,8 @@ func getTrades() {
 		if isFin {
 			break
 		}
+	}
+	for i := len(line) - 1; i >= 0; i-- {
+		writer.Write(line[i])
 	}
 }
