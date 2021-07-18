@@ -19,6 +19,7 @@ type Bot struct {
 	position     Position
 	result       Result
 	config       Config // parameter
+	log          []string
 }
 
 func NewBot(market string, config Config) *Bot {
@@ -32,9 +33,8 @@ func NewBot(market string, config Config) *Bot {
 	}
 }
 
-func (b *Bot) InitBot() {
+func (b *Bot) InitBot() {}
 
-}
 func (b *Bot) Result() {
 	fmt.Println("期間", b.result.startTime, "〜", b.result.endTime)
 	fmt.Println("トータルPnl:", b.result.totalPnl)
@@ -46,6 +46,11 @@ func (b *Bot) Result() {
 	fmt.Println("Lose:", b.result.loseCount)
 	winRate := float64(b.result.winCount) / (float64(b.result.longCount) + float64(b.result.shortCount))
 	fmt.Println("勝率:", winRate)
+	fmt.Println("")
+	fmt.Println("----- Log ------")
+	for _, l := range b.log {
+		fmt.Println(l)
+	}
 }
 
 type Trade struct {
@@ -106,7 +111,6 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 
 	var buyV, sellV float64
 	for _, item := range b.recentTrades {
-		// fmt.Println(item.Time.Unix(), trade.Time.Unix()-b.scope)
 		// scope秒すぎたものは消していく
 		if item.Time.Unix() <= (trade.Time.Unix() - b.config.scope) {
 			b.recentTrades = b.recentTrades[1:]
@@ -155,11 +159,23 @@ func (b *Bot) entry(side string, v float64, trade Trade) {
 		return
 	}
 	if side == "buy" {
-		fmt.Println(trade.Time, "volume:", v, "ロングエントリー", trade)
+		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ロングエントリー Size: %.4f, Price: %.3f, Liquidation: %t",
+			trade.Time,
+			v,
+			trade.Size,
+			trade.Price,
+			trade.Liquidation,
+		))
 		b.openPosition(side, trade)
 		b.result.longCount++
 	} else {
-		fmt.Println(trade.Time, "volume:", v, "ショートエントリー", trade)
+		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ショートエントリー Size: %.4f, Price: %.3f, Liquidation: %t",
+			trade.Time,
+			v,
+			trade.Size,
+			trade.Price,
+			trade.Liquidation,
+		))
 		b.openPosition(side, trade)
 		b.result.shortCount++
 	}
@@ -179,7 +195,12 @@ func (b *Bot) settle(trade Trade) {
 	}
 	// Fee
 	fee := b.lot * 0.000679 * 2
-	fmt.Println(trade.Time, "決済しました", trade, "Pnl:", pnl-fee)
+	b.log = append(b.log, fmt.Sprintf("%s, 決済しました  Size: %.4f, Price: %.3f, Pnl: %.4f",
+		trade.Time,
+		trade.Size,
+		trade.Price,
+		pnl-fee,
+	))
 	b.result.totalPnl += pnl
 	if pnl-fee > 0 {
 		b.result.winCount++
