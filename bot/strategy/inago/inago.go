@@ -15,26 +15,20 @@ type Bot struct {
 	market       string
 	recentTrades RecentTrades
 	lot          float64
-	scope        int64 // second
-	volumeTriger float64
 	state        int
-	settleTerm   int64
-	rebound      bool // buyTriger検知でshort/sellTriger検知でlong
 	position     Position
 	result       Result
+	config       Config // parameter
 }
 
-func NewBot(market string) *Bot {
+func NewBot(market string, config Config) *Bot {
 	return &Bot{
 		// client:       client,
-		// market:       market,
+		market:       market,
 		recentTrades: RecentTrades{},
 		lot:          2,
-		scope:        100,
-		volumeTriger: 300000,
-		settleTerm:   60,
-		rebound:      true,
 		state:        0,
+		config:       config,
 	}
 }
 
@@ -114,7 +108,7 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 	for _, item := range b.recentTrades {
 		// fmt.Println(item.Time.Unix(), trade.Time.Unix()-b.scope)
 		// scope秒すぎたものは消していく
-		if item.Time.Unix() <= (trade.Time.Unix() - b.scope) {
+		if item.Time.Unix() <= (trade.Time.Unix() - b.config.scope) {
 			b.recentTrades = b.recentTrades[1:]
 			continue
 		}
@@ -130,13 +124,13 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 	}
 
 	if buyV > sellV {
-		if b.rebound {
+		if b.config.reverse {
 			b.entry("sell", buyV, trade)
 		} else {
 			b.entry("buy", buyV, trade)
 		}
 	} else {
-		if b.rebound {
+		if b.config.reverse {
 			b.entry("buy", sellV, trade)
 		} else {
 			b.entry("sell", buyV, trade)
@@ -147,13 +141,13 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 func (b *Bot) handleWaitForSettlement(trade Trade) {
 
 	// TODO Important logic
-	if trade.Time.Unix() > b.position.Time.Unix()+b.settleTerm {
+	if trade.Time.Unix() > b.position.Time.Unix()+b.config.settleTerm {
 		b.settle(trade)
 	}
 }
 
 func (b *Bot) isEntry(buyVolume, sellVolume float64) bool {
-	return math.Max(buyVolume, sellVolume) > b.volumeTriger
+	return math.Max(buyVolume, sellVolume) > b.config.volumeTriger
 }
 
 func (b *Bot) entry(side string, v float64, trade Trade) {
