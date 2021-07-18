@@ -9,6 +9,9 @@ import (
 	"github.com/go-numb/go-ftx/rest"
 )
 
+const taker_fee float64 = 0.000679
+const slippage float64 = 0.0005
+
 // Inago Bot
 type Bot struct {
 	client       *rest.Client
@@ -27,7 +30,7 @@ func NewBot(market string, config Config) *Bot {
 		// client:       client,
 		market:       market,
 		recentTrades: RecentTrades{},
-		lot:          2,
+		lot:          3,
 		state:        0,
 		config:       config,
 	}
@@ -159,6 +162,7 @@ func (b *Bot) entry(side string, v float64, trade Trade) {
 		return
 	}
 	if side == "buy" {
+		trade.Price *= (1 + slippage)
 		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ロングエントリー Size: %.4f, Price: %.3f, Liquidation: %t",
 			trade.Time,
 			v,
@@ -169,6 +173,7 @@ func (b *Bot) entry(side string, v float64, trade Trade) {
 		b.openPosition(side, trade)
 		b.result.longCount++
 	} else {
+		trade.Price *= (1 - slippage)
 		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ショートエントリー Size: %.4f, Price: %.3f, Liquidation: %t",
 			trade.Time,
 			v,
@@ -194,7 +199,7 @@ func (b *Bot) settle(trade Trade) {
 		pnl = (b.position.Price - trade.Price) * b.lot
 	}
 	// Fee
-	fee := b.lot * 0.000679 * 2
+	fee := b.lot * taker_fee * 2
 	b.log = append(b.log, fmt.Sprintf("%s, 決済しました  Size: %.4f, Price: %.3f, Pnl: %.4f",
 		trade.Time,
 		trade.Size,
