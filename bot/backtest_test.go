@@ -7,6 +7,6 @@ import (
 )
 
 func TestBacktest(t *testing.T) {
-	backtest := NewBacktest(inago.NewBot())
+	backtest := NewBacktest(inago.NewBot("AXS-PERP"))
 	backtest.Run()
 }

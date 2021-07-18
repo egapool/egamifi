@@ -5,26 +5,35 @@ import (
 	"math"
 	"strconv"
 	"time"
+
+	"github.com/go-numb/go-ftx/rest"
 )
 
+// Inago Bot
 type Bot struct {
+	client       *rest.Client
+	market       string
 	recentTrades RecentTrades
 	lot          float64
 	scope        int64 // second
 	volumeTriger float64
 	state        int
 	settleTerm   int64
+	rebound      bool // buyTriger検知でshort/sellTriger検知でlong
 	position     Position
 	result       Result
 }
 
-func NewBot() *Bot {
+func NewBot(market string) *Bot {
 	return &Bot{
+		// client:       client,
+		// market:       market,
 		recentTrades: RecentTrades{},
-		lot:          1,
-		scope:        60,
-		volumeTriger: 90000,
-		settleTerm:   35,
+		lot:          2,
+		scope:        100,
+		volumeTriger: 300000,
+		settleTerm:   60,
+		rebound:      true,
 		state:        0,
 	}
 }
@@ -33,6 +42,7 @@ func (b *Bot) InitBot() {
 
 }
 func (b *Bot) Result() {
+	fmt.Println("期間", b.result.startTime, "〜", b.result.endTime)
 	fmt.Println("トータルPnl:", b.result.totalPnl)
 	fmt.Println("トータルFee:", b.result.totalFee)
 	fmt.Println("トータルProfit:", b.result.totalPnl-b.result.totalFee)
@@ -67,6 +77,8 @@ type Result struct {
 	shortCount int
 	winCount   int
 	loseCount  int
+	startTime  time.Time
+	endTime    time.Time
 }
 
 type RecentTrades []Trade
@@ -82,6 +94,11 @@ func (b *Bot) Handle(t, side, size, price, liquidation string) {
 		Price:       parsePrice,
 		Liquidation: (liquidation == "true"),
 	}
+	zero := time.Time{}
+	if b.result.startTime == zero {
+		b.result.startTime = trade.Time
+	}
+	b.result.endTime = trade.Time
 	switch b.state {
 	case 0:
 		b.handleWaitForOpenPosition(trade)
@@ -102,9 +119,9 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 			continue
 		}
 		if item.Side == "buy" {
-			buyV += item.Size
+			buyV += item.Size * item.Price
 		} else {
-			sellV += item.Size
+			sellV += item.Size * item.Price
 		}
 	}
 
@@ -113,14 +130,18 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 	}
 
 	if buyV > sellV {
-		// long
-		b.entry("buy", buyV, trade)
+		if b.rebound {
+			b.entry("sell", buyV, trade)
+		} else {
+			b.entry("buy", buyV, trade)
+		}
 	} else {
-		// short
-		b.entry("sell", sellV, trade)
+		if b.rebound {
+			b.entry("buy", sellV, trade)
+		} else {
+			b.entry("sell", buyV, trade)
+		}
 	}
-
-	// fmt.Println(trade.Time, buyV, sellV, len(b.recentTrades))
 }
 
 func (b *Bot) handleWaitForSettlement(trade Trade) {
@@ -141,12 +162,13 @@ func (b *Bot) entry(side string, v float64, trade Trade) {
 	}
 	if side == "buy" {
 		fmt.Println(trade.Time, "volume:", v, "ロングエントリー", trade)
+		b.openPosition(side, trade)
 		b.result.longCount++
 	} else {
 		fmt.Println(trade.Time, "volume:", v, "ショートエントリー", trade)
+		b.openPosition(side, trade)
 		b.result.shortCount++
 	}
-	b.openPosition(trade)
 }
 
 func (b *Bot) settle(trade Trade) {
@@ -174,10 +196,20 @@ func (b *Bot) settle(trade Trade) {
 	b.state = 0
 }
 
-func (b *Bot) openPosition(trade Trade) {
+func (b *Bot) openPosition(side string, trade Trade) {
+	// req := &orders.RequestForPlaceOrder{
+	// 	Market: b.market,
+	// 	Type:   "market",
+	// 	Side:   side,
+	// 	Size:   b.lot,
+	// 	Ioc:    true}
+	// o, err := b.client.PlaceOrder(req)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 	b.position = Position{
 		Time:  trade.Time,
-		Side:  trade.Side,
+		Side:  side,
 		Size:  trade.Size,
 		Price: trade.Price,
 	}
