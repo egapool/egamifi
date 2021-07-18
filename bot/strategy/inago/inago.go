@@ -47,13 +47,47 @@ func (b *Bot) Result() {
 	fmt.Println("ショート回数:", b.result.shortCount)
 	fmt.Println("Win:", b.result.winCount)
 	fmt.Println("Lose:", b.result.loseCount)
-	winRate := float64(b.result.winCount) / (float64(b.result.longCount) + float64(b.result.shortCount))
-	fmt.Println("勝率:", winRate)
+	fmt.Println("勝率:", b.result.winRate())
+
 	fmt.Println("")
 	fmt.Println("----- Log ------")
 	for _, l := range b.log {
 		fmt.Println(l)
 	}
+}
+
+func (b *Bot) ResultOneline() {
+	// start, end, triger_volume, scope, settle_term, reverse, profit, pnl, fee, long_count, short_count, win, lose, total, entry, rate
+	fmt.Printf("%s,%s,%.0f,%d,%d,%t,%.3f,%.3f,%.3f,%d,%d,%d,%d,%d,%.3f\n",
+		b.result.startTime.Format("20060102150405"),
+		b.result.endTime.Format("20060102150405"),
+		b.config.volumeTriger,
+		b.config.scope,
+		b.config.settleTerm,
+		b.config.reverse,
+		b.result.totalPnl-b.result.totalFee,
+		b.result.totalPnl,
+		b.result.totalFee,
+		b.result.longCount,
+		b.result.shortCount,
+		b.result.winCount,
+		b.result.loseCount,
+		b.result.longCount+b.result.shortCount,
+		b.result.winRate(),
+	)
+
+	// logging into file
+	// filepath := fmt.Sprintf("result/inago/%s-%s-%s.log", b.result.startTime.Format("20060102150405"), b.result.endTime.Format("20060102150405"), b.config.Serialize())
+	// file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE, 0600)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer file.Close()
+	// writer := csv.NewWriter(file)
+	//
+	// for _, l := range b.log {
+	// 	writer.Write([]string{l})
+	// }
 }
 
 type Trade struct {
@@ -81,6 +115,10 @@ type Result struct {
 	loseCount  int
 	startTime  time.Time
 	endTime    time.Time
+}
+
+func (r *Result) winRate() float64 {
+	return float64(r.winCount) / (float64(r.longCount) + float64(r.shortCount))
 }
 
 type RecentTrades []Trade

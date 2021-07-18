@@ -20,7 +20,7 @@ var tradeEndFlag string
 var researchtradesCmd = &cobra.Command{
 	Use:   "trades",
 	Short: "A brief description of your command",
-	Long:  ``,
+	Long:  `ex) egamifi research trades -m AXS-PERP -s "2021-07-15 23:00:00" -e "2021-07-15 23:07:00"`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("research trades called")
 		if tradeStartFlag == "" {
@@ -56,7 +56,7 @@ func getTrades() {
 	endUnixtime := endTime.Unix()
 
 	dir := "data"
-	filename := fmt.Sprintf("ftx-trades-%s-%s.csv", endTime.Format("20060102150405"), startTime.Format("20060102150405"))
+	filename := fmt.Sprintf("ftx-trades-%s-%s-%s.csv", tradeMarketFlag, endTime.Format("20060102150405"), startTime.Format("20060102150405"))
 	filepath := dir + "/" + filename
 	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {

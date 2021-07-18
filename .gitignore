@@ -1,6 +1,8 @@
 vendor
 notebook/cache/*
 data/*
+result/*
+result/inago/*
 !.gitkeep
 .env
 bin/*

@@ -1,10 +1,5 @@
 package bot
 
-import (
-	"encoding/csv"
-	"os"
-)
-
 type Backtest struct {
 	bot Bot
 }
@@ -13,6 +8,7 @@ type Bot interface {
 	InitBot()
 	Handle(t, side, size, price, liquidation string)
 	Result()
+	ResultOneline()
 }
 
 func NewBacktest(bot Bot) Backtest {
@@ -23,28 +19,15 @@ func NewBacktest(bot Bot) Backtest {
 	// logger?
 }
 
-func (t *Backtest) Run() {
-	// loop by price data set
-	// filepath := "../data/ftx-trades-20210715230700-20210715230000.csv"
-	filepath := "../data/sample.csv"
-	file, err := os.Open(filepath)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-	var line []string
-
-	for {
-		line, err = reader.Read()
-		if err != nil {
-			break
+func (t *Backtest) Run(trades [][]string, is_combination bool) {
+	func() {
+		for _, line := range trades {
+			t.bot.Handle(line[1], line[2], line[3], line[4], line[5])
 		}
-		// run a strategy
-		t.bot.Handle(line[1], line[2], line[3], line[4], line[5])
-	}
-
-	// 集計
-	t.bot.Result()
+		if is_combination {
+			t.bot.ResultOneline()
+		} else {
+			t.bot.Result()
+		}
+	}()
 }

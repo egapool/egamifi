@@ -13,5 +13,6 @@ func TestBacktest(t *testing.T) {
 	var reverse bool = true
 	inago_config := inago.NewConfig(scope, volumeTriger, settleTerm, reverse)
 	backtest := NewBacktest(inago.NewBot("AXS-PERP", inago_config))
-	backtest.Run()
+	trade_file := "../data/ftx-trades-AXS-PERP-20210718220000-20210717220000.csv"
+	backtest.Run(trade_file, false)
 }
