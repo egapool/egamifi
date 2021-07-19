@@ -191,6 +191,7 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 	}
 }
 
+// TODO フィルタリング等いれて改良する
 func (b *Bot) isEntry(buyVolume, sellVolume float64) bool {
 	return math.Max(buyVolume, sellVolume) > b.config.volumeTriger
 }
