@@ -30,10 +30,17 @@ func init() {
 }
 
 func runBacktest() {
+	switch testStrategy {
+	case "inago":
+		runInago()
+	}
+}
+
+func runInago() {
 	fmt.Println("start, end, triger_volume, scope, settle_term, reverse, profit, pnl, fee, long_count, short_count, win, lose, total_entry, rate")
-	volume_triger_list := []float64{300000}
-	scope_list := []int64{100}
-	settle_term_list := []int64{60}
+	volume_triger_list := []float64{50000, 100000, 150000, 200000, 300000, 400000, 500000}
+	scope_list := []int64{10, 20, 30, 40, 50, 60, 100}
+	settle_term_list := []int64{10, 20, 30, 40, 50, 60, 100}
 	reverse_list := []bool{true, false}
 
 	// goroutineで使うためにメモリに読み込み
@@ -54,7 +61,7 @@ func runBacktest() {
 	}
 	file.Close()
 
-	ch := make(chan bool, 1)
+	ch := make(chan bool, 5)
 	for _, volumeTriger := range volume_triger_list {
 		for _, scope := range scope_list {
 			for _, settleTerm := range settle_term_list {
@@ -66,6 +73,7 @@ func runBacktest() {
 			}
 		}
 	}
+
 }
 func exec(ch chan bool, trades [][]string, inago_config inago.Config) {
 	defer func() {
