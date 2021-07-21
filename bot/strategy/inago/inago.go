@@ -1,8 +1,11 @@
 package inago
 
 import (
+	"encoding/csv"
 	"fmt"
+	"log"
 	"math"
+	"os"
 	"strconv"
 	"time"
 
@@ -14,15 +17,16 @@ const slippage float64 = 0.0005
 
 // Inago Bot
 type Bot struct {
-	client       *rest.Client
-	market       string
-	recentTrades RecentTrades
-	lot          float64
-	state        int
-	position     Position
-	result       Result
-	config       Config // parameter
-	log          []string
+	client        *rest.Client
+	market        string
+	recentTrades  RecentTrades
+	lot           float64
+	state         int // 1: open position, 2: cool down time
+	position      Position
+	lastCloseTime time.Time
+	result        Result
+	config        Config // parameter
+	log           []string
 }
 
 func NewBot(market string, config Config) *Bot {
@@ -58,12 +62,13 @@ func (b *Bot) Result() {
 
 func (b *Bot) ResultOneline() {
 	// start, end, triger_volume, scope, settle_term, reverse, profit, pnl, fee, long_count, short_count, win, lose, total, entry, rate
-	fmt.Printf("%s,%s,%.0f,%d,%d,%t,%.3f,%.3f,%.3f,%d,%d,%d,%d,%d,%.3f\n",
+	fmt.Printf("%s,%s,%.0f,%d,%d,%.5f,%t,%.3f,%.3f,%.3f,%d,%d,%d,%d,%d,%.3f\n",
 		b.result.startTime.Format("20060102150405"),
 		b.result.endTime.Format("20060102150405"),
 		b.config.volumeTriger,
 		b.config.scope,
 		b.config.settleTerm,
+		b.config.settleRange,
 		b.config.reverse,
 		b.result.totalPnl-b.result.totalFee,
 		b.result.totalPnl,
@@ -77,17 +82,25 @@ func (b *Bot) ResultOneline() {
 	)
 
 	// logging into file
-	// filepath := fmt.Sprintf("result/inago/%s-%s-%s.log", b.result.startTime.Format("20060102150405"), b.result.endTime.Format("20060102150405"), b.config.Serialize())
-	// file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE, 0600)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer file.Close()
-	// writer := csv.NewWriter(file)
-	//
-	// for _, l := range b.log {
-	// 	writer.Write([]string{l})
-	// }
+	result_dir := fmt.Sprintf("result/inago/%s-%s", b.result.startTime.Format("20060102150405"), b.result.endTime.Format("20060102150405"))
+	if _, err := os.Stat(result_dir); os.IsNotExist(err) {
+		os.Mkdir(result_dir, 0777)
+	}
+
+	filepath := fmt.Sprintf(result_dir+"/%s.log", b.config.Serialize())
+	if err := os.Remove(filepath); err != nil {
+	}
+	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+	writer := csv.NewWriter(file)
+
+	for _, l := range b.log {
+		writer.Write([]string{l})
+	}
+	writer.Flush()
 }
 
 type Trade struct {
@@ -139,11 +152,17 @@ func (b *Bot) Handle(t, side, size, price, liquidation string) {
 		b.result.startTime = trade.Time
 	}
 	b.result.endTime = trade.Time
+
 	switch b.state {
+	// neutral
 	case 0:
 		b.handleWaitForOpenPosition(trade)
+		// open position
 	case 1:
 		b.handleWaitForSettlement(trade)
+		// waiting for cool down time
+	case 2:
+		b.handleCoolDownTime(trade)
 	}
 }
 
@@ -151,16 +170,30 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 	b.recentTrades = append(b.recentTrades, trade)
 
 	var buyV, sellV float64
+	// scope秒すぎたものは消していく
 	for _, item := range b.recentTrades {
-		// scope秒すぎたものは消していく
 		if item.Time.Unix() <= (trade.Time.Unix() - b.config.scope) {
 			b.recentTrades = b.recentTrades[1:]
 			continue
 		}
+	}
+	first_in_scope := b.recentTrades[0]
+	for _, item := range b.recentTrades {
+		// IDEA 荷重加算しても良いかも/直近ほど重い
+		// IDEA Done scope前と価格が開いていたらボーナスを付与する
+		var r float64 = 5
 		if item.Side == "buy" {
-			buyV += item.Size * item.Price
+			price_diff := (item.Price / first_in_scope.Price) - 1 // 0.01 or -0.01
+			// TODO レート調整
+			rate := price_diff * r // 0.2 or -0.2
+			rate += 1              // 1.2 or 0.8
+			buyV += item.Size * item.Price * rate
 		} else {
-			sellV += item.Size * item.Price
+			price_diff := (first_in_scope.Price / item.Price) - 1 // 0.01 or -0.01
+			// TODO レート調整
+			rate := price_diff * r // 0.2 or -0.2
+			rate += 1              // 1.2 or 0.8
+			sellV += item.Size * item.Price * rate
 		}
 	}
 
@@ -168,6 +201,7 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 		return
 	}
 
+	// fmt.Println(buyV, sellV)
 	if buyV > sellV {
 		if b.config.reverse {
 			b.entry("sell", buyV, trade)
@@ -183,15 +217,46 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 	}
 }
 
+// TODO Important logic
 func (b *Bot) handleWaitForSettlement(trade Trade) {
 
-	// TODO Important logic
+	// TODO 損切り?
+
+	// positionの方向に進んでいる以上は決済しない
+	// if trade.Side == b.position.Side {
+	// 	return
+	// }
+
+	// X%さやが開いたらclose
+	// TODO トレンドフォロー
+	var price_range float64
+	if b.position.Side == "buy" {
+		price_range = (trade.Price - b.position.Price) / b.position.Price
+	} else {
+		price_range = (b.position.Price - trade.Price) / b.position.Price
+	}
+	if price_range > b.config.settleRange {
+		b.settle(trade)
+		return
+	}
+
+	// 制限時間過ぎたら強制close
 	if trade.Time.Unix() > b.position.Time.Unix()+b.config.settleTerm {
 		b.settle(trade)
+		return
 	}
 }
 
-// TODO フィルタリング等いれて改良する
+func (b *Bot) handleCoolDownTime(trade Trade) {
+	if trade.Time.Unix() < b.lastCloseTime.Unix()+b.config.scope {
+		return
+	}
+	// cool down time finish
+	b.state = 0
+	return
+}
+
+// IDEA フィルタリング等いれて改良する
 func (b *Bot) isEntry(buyVolume, sellVolume float64) bool {
 	return math.Max(buyVolume, sellVolume) > b.config.volumeTriger
 }
@@ -202,23 +267,21 @@ func (b *Bot) entry(side string, v float64, trade Trade) {
 	}
 	if side == "buy" {
 		trade.Price *= (1 + slippage)
-		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ロングエントリー Size: %.4f, Price: %.3f, Liquidation: %t",
+		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ロングエントリー Size: %.4f, Price: %.3f",
 			trade.Time,
 			v,
 			trade.Size,
 			trade.Price,
-			trade.Liquidation,
 		))
 		b.openPosition(side, trade)
 		b.result.longCount++
 	} else {
 		trade.Price *= (1 - slippage)
-		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ショートエントリー Size: %.4f, Price: %.3f, Liquidation: %t",
+		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ショートエントリー Size: %.4f, Price: %.3f",
 			trade.Time,
 			v,
 			trade.Size,
 			trade.Price,
-			trade.Liquidation,
 		))
 		b.openPosition(side, trade)
 		b.result.shortCount++
@@ -239,10 +302,11 @@ func (b *Bot) settle(trade Trade) {
 	}
 	// Fee
 	fee := b.lot * taker_fee * 2
-	b.log = append(b.log, fmt.Sprintf("%s, 決済しました  Size: %.4f, Price: %.3f, Pnl: %.4f",
+	b.log = append(b.log, fmt.Sprintf("%s, 決済しました  Size: %.4f, Price: %.3f, OpenTime: %s, Pnl: %.4f",
 		trade.Time,
 		trade.Size,
 		trade.Price,
+		trade.Time.Sub(b.position.Time),
 		pnl-fee,
 	))
 	b.result.totalPnl += pnl
@@ -252,7 +316,16 @@ func (b *Bot) settle(trade Trade) {
 		b.result.loseCount++
 	}
 	b.result.totalFee += fee
-	b.state = 0
+
+	// 最後に決済した時刻を保存
+	b.lastCloseTime = trade.Time
+
+	// IDEA 閾値どうする？
+	if pnl > 0 {
+		b.state = 2
+	} else {
+		b.state = 0
+	}
 }
 
 func (b *Bot) openPosition(side string, trade Trade) {

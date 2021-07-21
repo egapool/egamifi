@@ -37,11 +37,12 @@ func runBacktest() {
 }
 
 func runInago() {
-	fmt.Println("start, end, triger_volume, scope, settle_term, reverse, profit, pnl, fee, long_count, short_count, win, lose, total_entry, rate")
-	volume_triger_list := []float64{50000, 100000, 150000, 200000, 300000, 400000, 500000}
-	scope_list := []int64{10, 20, 30, 40, 50, 60, 100}
-	settle_term_list := []int64{10, 20, 30, 40, 50, 60, 100}
-	reverse_list := []bool{true, false}
+	fmt.Println("start, end, triger_volume, scope, settle_term, settle_range, reverse, profit, pnl, fee, long_count, short_count, win, lose, total_entry, rate")
+	volume_triger_list := []float64{150000, 300000, 450000, 600000, 750000, 900000}
+	scope_list := []int64{20, 40, 60}
+	settle_term_list := []int64{10, 30, 50}
+	reverse_list := []bool{false}
+	settle_range_list := []float64{0.01, 0.015}
 
 	// goroutineで使うためにメモリに読み込み
 	// AXSの場合1日で〜20MB
@@ -66,9 +67,11 @@ func runInago() {
 		for _, scope := range scope_list {
 			for _, settleTerm := range settle_term_list {
 				for _, reverse := range reverse_list {
-					ch <- true
-					inago_config := inago.NewConfig(scope, volumeTriger, settleTerm, reverse)
-					go exec(ch, trades, inago_config)
+					for _, settle_range := range settle_range_list {
+						ch <- true
+						inago_config := inago.NewConfig(scope, volumeTriger, settleTerm, settle_range, reverse)
+						go exec(ch, trades, inago_config)
+					}
 				}
 			}
 		}

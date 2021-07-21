@@ -106,7 +106,6 @@ func getTrades() {
 		if firstTime == endUnixtime {
 			endUnixtime--
 		}
-		writer.Flush()
 		if isFin {
 			break
 		}
@@ -114,5 +113,6 @@ func getTrades() {
 	for i := len(line) - 1; i >= 0; i-- {
 		writer.Write(line[i])
 	}
+	writer.Flush()
 	fmt.Println(filepath)
 }
