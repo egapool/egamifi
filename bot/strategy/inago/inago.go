@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-numb/go-ftx/rest"
@@ -34,7 +35,7 @@ func NewBot(market string, config Config) *Bot {
 		// client:       client,
 		market:       market,
 		recentTrades: RecentTrades{},
-		lot:          3,
+		lot:          0.25,
 		state:        0,
 		config:       config,
 	}
@@ -43,16 +44,7 @@ func NewBot(market string, config Config) *Bot {
 func (b *Bot) InitBot() {}
 
 func (b *Bot) Result() {
-	fmt.Println("期間", b.result.startTime, "〜", b.result.endTime)
-	fmt.Println("トータルPnl:", b.result.totalPnl)
-	fmt.Println("トータルFee:", b.result.totalFee)
-	fmt.Println("トータルProfit:", b.result.totalPnl-b.result.totalFee)
-	fmt.Println("ロング回数:", b.result.longCount)
-	fmt.Println("ショート回数:", b.result.shortCount)
-	fmt.Println("Win:", b.result.winCount)
-	fmt.Println("Lose:", b.result.loseCount)
-	fmt.Println("勝率:", b.result.winRate())
-
+	b.result.render()
 	fmt.Println("")
 	fmt.Println("----- Log ------")
 	for _, l := range b.log {
@@ -61,30 +53,34 @@ func (b *Bot) Result() {
 }
 
 func (b *Bot) ResultOneline() {
-	// start, end, triger_volume, scope, settle_term, reverse, profit, pnl, fee, long_count, short_count, win, lose, total, entry, rate
-	fmt.Printf("%s,%s,%.0f,%d,%d,%.5f,%t,%.3f,%.3f,%.3f,%d,%d,%d,%d,%d,%.3f\n",
+	if b.result.tradeCount() <= 10 {
+		return
+	}
+	// start, end, triger_volume, scope, settle_term, price_ratio, reverse, profit, pnl, fee, long_count, short_count, win, lose, total, entry, rate
+	fmt.Printf("%s,%s,%.0f,%d,%d,%.5f,%.1f, %t,%.3f,%.3f,%.3f,%d,%d,%d,%d,%.3f,%.3f\n",
 		b.result.startTime.Format("20060102150405"),
 		b.result.endTime.Format("20060102150405"),
 		b.config.volumeTriger,
 		b.config.scope,
 		b.config.settleTerm,
 		b.config.settleRange,
+		b.config.priceRatio,
 		b.config.reverse,
 		b.result.totalPnl-b.result.totalFee,
 		b.result.totalPnl,
 		b.result.totalFee,
-		b.result.longCount,
-		b.result.shortCount,
-		b.result.winCount,
-		b.result.loseCount,
+		b.result.tradeCount(),
+		b.result.winCount(),
+		b.result.tradeCount()-b.result.winCount(),
 		b.result.longCount+b.result.shortCount,
 		b.result.winRate(),
+		b.result.pf(),
 	)
 
 	// logging into file
-	result_dir := fmt.Sprintf("result/inago/%s-%s", b.result.startTime.Format("20060102150405"), b.result.endTime.Format("20060102150405"))
+	result_dir := fmt.Sprintf("result/inago/%s/%s-%s", b.market, b.result.startTime.Format("20060102150405"), b.result.endTime.Format("20060102150405"))
 	if _, err := os.Stat(result_dir); os.IsNotExist(err) {
-		os.Mkdir(result_dir, 0777)
+		os.MkdirAll(result_dir, 0777)
 	}
 
 	filepath := fmt.Sprintf(result_dir+"/%s.log", b.config.Serialize())
@@ -118,31 +114,15 @@ type Position struct {
 	Price float64
 }
 
-// TODO ryota-trade見る
-type Result struct {
-	totalPnl   float64
-	totalFee   float64
-	longCount  int
-	shortCount int
-	winCount   int
-	loseCount  int
-	startTime  time.Time
-	endTime    time.Time
-}
-
-func (r *Result) winRate() float64 {
-	return float64(r.winCount) / (float64(r.longCount) + float64(r.shortCount))
-}
-
 type RecentTrades []Trade
 
-func (b *Bot) Handle(t, side, size, price, liquidation string) {
+func (b *Bot) Handle(t, side, price, size, liquidation string) {
 	parseTime, _ := time.Parse("2006-01-02 15:04:05.00000", t)
 	parseSize, _ := strconv.ParseFloat(size, 64)
 	parsePrice, _ := strconv.ParseFloat(price, 64)
 	trade := Trade{
 		Time:        parseTime,
-		Side:        side,
+		Side:        strings.TrimSpace(side),
 		Size:        parseSize,
 		Price:       parsePrice,
 		Liquidation: (liquidation == "true"),
@@ -178,22 +158,34 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 		}
 	}
 	first_in_scope := b.recentTrades[0]
+	// for _, item := range b.recentTrades {
+	// 	// IDEA 荷重加算しても良いかも/直近ほど重い
+	// 	// IDEA Done scope前と価格が開いていたらボーナスを付与する
+	// 	if item.Side == "buy" {
+	// 		price_diff := (item.Price / first_in_scope.Price) - 1 // 0.01 or -0.01
+	// 		// TODO レート調整
+	// 		rate := price_diff * b.config.priceRatio // 0.2 or -0.2
+	// 		rate += 1                                // 1.2 or 0.8
+	// 		buyV = buyV + item.Size*rate
+	// 	} else {
+	// 		price_diff := (first_in_scope.Price / item.Price) - 1 // 0.01 or -0.01
+	// 		// TODO レート調整
+	// 		rate := price_diff * b.config.priceRatio // 0.2 or -0.2
+	// 		rate += 1                                // 1.2 or 0.8
+	// 		sellV = sellV + item.Size*rate
+	// 	}
+	// }
+
+	// 指数増加var
 	for _, item := range b.recentTrades {
 		// IDEA 荷重加算しても良いかも/直近ほど重い
 		// IDEA Done scope前と価格が開いていたらボーナスを付与する
-		var r float64 = 5
 		if item.Side == "buy" {
-			price_diff := (item.Price / first_in_scope.Price) - 1 // 0.01 or -0.01
-			// TODO レート調整
-			rate := price_diff * r // 0.2 or -0.2
-			rate += 1              // 1.2 or 0.8
-			buyV += item.Size * item.Price * rate
+			price_diff_rate := (item.Price / first_in_scope.Price) // ex. 0.01 or -0.01
+			buyV = buyV + item.Size*math.Pow(price_diff_rate, b.config.priceRatio)
 		} else {
-			price_diff := (first_in_scope.Price / item.Price) - 1 // 0.01 or -0.01
-			// TODO レート調整
-			rate := price_diff * r // 0.2 or -0.2
-			rate += 1              // 1.2 or 0.8
-			sellV += item.Size * item.Price * rate
+			price_diff_rate := (first_in_scope.Price / item.Price) // 0.01 or -0.01
+			sellV = sellV + item.Size*math.Pow(price_diff_rate, b.config.priceRatio)
 		}
 	}
 
@@ -201,7 +193,6 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 		return
 	}
 
-	// fmt.Println(buyV, sellV)
 	if buyV > sellV {
 		if b.config.reverse {
 			b.entry("sell", buyV, trade)
@@ -212,7 +203,7 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 		if b.config.reverse {
 			b.entry("buy", sellV, trade)
 		} else {
-			b.entry("sell", buyV, trade)
+			b.entry("sell", sellV, trade)
 		}
 	}
 }
@@ -220,7 +211,31 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 // TODO Important logic
 func (b *Bot) handleWaitForSettlement(trade Trade) {
 
-	// TODO 損切り?
+	// 建値より逆さやになったら損切り
+	// 損切り入れると極端に勝率がさがる
+	// if b.position.Side == "buy" && trade.Price < b.position.Price*(1-slippage*5) {
+	// 	b.log = append(b.log, fmt.Sprintf("%s, 損切り(ロング) market: %.3f, open: %.3f",
+	// 		trade.Time,
+	// 		trade.Price,
+	// 		b.position.Price,
+	// 	))
+	// 	b.settle(trade)
+	//
+	// 	// 損切りしたら一旦cooldown
+	// 	b.state = 2
+	// 	return
+	// } else if b.position.Side == "sell" && trade.Price > b.position.Price*(1+slippage*5) {
+	// 	b.log = append(b.log, fmt.Sprintf("%s, 損切り(ショート) market: %.3f, open: %.3f",
+	// 		trade.Time,
+	// 		trade.Price,
+	// 		b.position.Price,
+	// 	))
+	// 	b.settle(trade)
+	//
+	// 	// 損切りしたら一旦cooldown
+	// 	b.state = 2
+	// 	return
+	// }
 
 	// positionの方向に進んでいる以上は決済しない
 	// if trade.Side == b.position.Side {
@@ -293,15 +308,28 @@ func (b *Bot) settle(trade Trade) {
 		return
 	}
 
+	// TODO 決済注文から結果を抽出
+
+	// Fee
+	fee := trade.Price * b.lot * taker_fee * 2
+
 	// market close order
 	var pnl float64
 	if b.position.Side == "buy" {
 		pnl = (trade.Price - b.position.Price) * b.lot
+		b.result.longProfit = append(b.result.longProfit, pnl-fee)
+		b.result.longReturn = append(b.result.longReturn, 100*(pnl-fee)/b.position.Price)
+		if pnl-fee > 0 {
+			b.result.longWinning++
+		}
 	} else {
 		pnl = (b.position.Price - trade.Price) * b.lot
+		b.result.shortProfit = append(b.result.shortProfit, pnl-fee)
+		b.result.shortReturn = append(b.result.shortReturn, 100*(pnl-fee)/b.position.Price)
+		if pnl-fee > 0 {
+			b.result.shortWinning++
+		}
 	}
-	// Fee
-	fee := b.lot * taker_fee * 2
 	b.log = append(b.log, fmt.Sprintf("%s, 決済しました  Size: %.4f, Price: %.3f, OpenTime: %s, Pnl: %.4f",
 		trade.Time,
 		trade.Size,
@@ -310,22 +338,18 @@ func (b *Bot) settle(trade Trade) {
 		pnl-fee,
 	))
 	b.result.totalPnl += pnl
-	if pnl-fee > 0 {
-		b.result.winCount++
-	} else {
-		b.result.loseCount++
-	}
 	b.result.totalFee += fee
 
 	// 最後に決済した時刻を保存
 	b.lastCloseTime = trade.Time
 
 	// IDEA 閾値どうする？
-	if pnl > 0 {
-		b.state = 2
-	} else {
-		b.state = 0
-	}
+	// if pnl > 0 {
+	// 	b.state = 2
+	// } else {
+	// 	b.state = 0
+	// }
+	b.state = 0
 }
 
 func (b *Bot) openPosition(side string, trade Trade) {

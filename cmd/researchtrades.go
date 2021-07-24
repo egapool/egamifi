@@ -94,8 +94,8 @@ func getTrades() {
 				tradeMarketFlag,
 				localTime.Format("2006-01-02 15:04:05.00000"),
 				t.Side,
-				fmt.Sprint(t.Size),
 				fmt.Sprint(t.Price),
+				fmt.Sprint(t.Size),
 				fmt.Sprint(t.Liquidation),
 				fmt.Sprint(t.ID),
 			})
@@ -106,6 +106,7 @@ func getTrades() {
 		if firstTime == endUnixtime {
 			endUnixtime--
 		}
+		writer.Flush()
 		if isFin {
 			break
 		}
