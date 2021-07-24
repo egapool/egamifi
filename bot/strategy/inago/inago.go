@@ -10,11 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egapool/egamifi/internal"
+	"github.com/egapool/egamifi/internal/indicators"
 	"github.com/go-numb/go-ftx/rest"
 )
 
 const taker_fee float64 = 0.000679
 const slippage float64 = 0.0005
+const volatility_period int = 20
 
 // Inago Bot
 type Bot struct {
@@ -25,12 +28,17 @@ type Bot struct {
 	state         int // 1: open position, 2: cool down time
 	position      Position
 	lastCloseTime time.Time
+	candles       []internal.Candle
 	result        Result
 	config        Config // parameter
 	log           []string
+	loc           *time.Location
+	volatility    float64
 }
 
 func NewBot(market string, config Config) *Bot {
+	jst, _ := time.LoadLocation("Asia/Tokyo")
+
 	return &Bot{
 		// client:       client,
 		market:       market,
@@ -38,6 +46,7 @@ func NewBot(market string, config Config) *Bot {
 		lot:          0.25,
 		state:        0,
 		config:       config,
+		loc:          jst,
 	}
 }
 
@@ -116,8 +125,41 @@ type Position struct {
 
 type RecentTrades []Trade
 
+func (b *Bot) updateCandle(trade Trade) {
+	if len(b.candles) == 0 {
+		tp := internal.NewMinuteFromTime(trade.Time)
+		candle := internal.NewCandle(tp)
+		candle.AddTrade(trade.Size, trade.Price)
+		b.candles = append(b.candles, *candle)
+		return
+	}
+	latest_candle := b.candles[len(b.candles)-1]
+	if latest_candle.Period.Contain(trade.Time) {
+		latest_candle.AddTrade(trade.Size, trade.Price)
+		b.candles[len(b.candles)-1] = latest_candle
+	} else {
+		tp := internal.NewMinuteFromTime(trade.Time)
+		candle := internal.NewCandle(tp)
+		candle.AddTrade(trade.Size, trade.Price)
+		b.candles = append(b.candles, *candle)
+		if len(b.candles) < volatility_period+1 {
+			return
+		}
+		// ボラティリティを計算
+		var mf indicators.Mfloat
+		for _, c := range b.candles[len(b.candles)-(volatility_period+1) : len(b.candles)-1] {
+			mf = append(mf, c.Close)
+		}
+		b.volatility = indicators.Std(mf)
+		if len(b.candles) > 100 {
+			b.candles = b.candles[1:]
+		}
+	}
+}
+
 func (b *Bot) Handle(t, side, price, size, liquidation string) {
-	parseTime, _ := time.Parse("2006-01-02 15:04:05.00000", t)
+	// jst, _ := time.LoadLocation("Asia/Tokyo")
+	parseTime, _ := time.ParseInLocation("2006-01-02 15:04:05.00000", t, b.loc)
 	parseSize, _ := strconv.ParseFloat(size, 64)
 	parsePrice, _ := strconv.ParseFloat(price, 64)
 	trade := Trade{
@@ -127,6 +169,14 @@ func (b *Bot) Handle(t, side, price, size, liquidation string) {
 		Price:       parsePrice,
 		Liquidation: (liquidation == "true"),
 	}
+
+	// 約定履歴からOHLC作成
+	b.updateCandle(trade)
+
+	if len(b.candles) < volatility_period+1 {
+		return
+	}
+
 	zero := time.Time{}
 	if b.result.startTime == zero {
 		b.result.startTime = trade.Time
@@ -177,10 +227,14 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 	// }
 
 	// 指数増加var
+	// if len(b.candles) < 2 {
+	// 	return
+	// }
 	for _, item := range b.recentTrades {
 		// IDEA 荷重加算しても良いかも/直近ほど重い
-		// IDEA Done scope前と価格が開いていたらボーナスを付与する
+		// IDEA Done 前の分足の終値と価格が開いていたら指数荷重ボーナスを付与する
 		if item.Side == "buy" {
+			// price_diff_rate := (item.Price / b.candles[len(b.candles)-2].Close) // ex. 0.01 or -0.01
 			price_diff_rate := (item.Price / first_in_scope.Price) // ex. 0.01 or -0.01
 			buyV = buyV + item.Size*math.Pow(price_diff_rate, b.config.priceRatio)
 		} else {
