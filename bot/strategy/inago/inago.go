@@ -197,8 +197,79 @@ func (b *Bot) Handle(t, side, price, size, liquidation string) {
 }
 
 func (b *Bot) handleWaitForOpenPosition(trade Trade) {
-	b.recentTrades = append(b.recentTrades, trade)
+	is_entry, entry_side, trigger_volume := b.isEntry(trade)
+	if !is_entry {
+		return
+	}
 
+	if b.config.reverse {
+		b.entry(opSide(entry_side), trigger_volume, trade)
+	} else {
+		b.entry(entry_side, trigger_volume, trade)
+	}
+}
+
+// TODO Important logic
+func (b *Bot) handleWaitForSettlement(trade Trade) {
+
+	// 建値より逆さやになったら損切り
+	// 損切り入れると極端に勝率がさがる
+	// if b.position.Side == "buy" && trade.Price < b.position.Price*(1-slippage*5) {
+	// 	b.log = append(b.log, fmt.Sprintf("%s, 損切り(ロング) market: %.3f, open: %.3f",
+	// 		trade.Time,
+	// 		trade.Price,
+	// 		b.position.Price,
+	// 	))
+	// 	b.settle(trade)
+	//
+	// 	// 損切りしたら一旦cooldown
+	// 	b.state = 2
+	// 	return
+	// } else if b.position.Side == "sell" && trade.Price > b.position.Price*(1+slippage*5) {
+	// 	b.log = append(b.log, fmt.Sprintf("%s, 損切り(ショート) market: %.3f, open: %.3f",
+	// 		trade.Time,
+	// 		trade.Price,
+	// 		b.position.Price,
+	// 	))
+	// 	b.settle(trade)
+	//
+	// 	// 損切りしたら一旦cooldown
+	// 	b.state = 2
+	// 	return
+	// }
+
+	// X%さやが開いたらclose
+	// TODO トレンドフォロー
+	var price_range float64
+	if b.position.Side == "buy" {
+		price_range = (trade.Price - b.position.Price) / b.position.Price
+	} else {
+		price_range = (b.position.Price - trade.Price) / b.position.Price
+	}
+	if price_range > b.config.settleRange {
+		b.settle(trade)
+		return
+	}
+
+	// 制限時間過ぎたら強制close
+	if trade.Time.Unix() > b.position.Time.Unix()+b.config.settleTerm {
+		b.settle(trade)
+		return
+	}
+}
+
+func (b *Bot) handleCoolDownTime(trade Trade) {
+	if trade.Time.Unix() < b.lastCloseTime.Unix()+b.config.scope {
+		return
+	}
+	// cool down time finish
+	b.state = 0
+	return
+}
+
+// IDEA フィルタリング等いれて改良する
+func (b *Bot) isEntry(trade Trade) (is_entry bool, entry_side string, trigger_volume float64) {
+	b.recentTrades = append(b.recentTrades, trade)
 	var buyV, sellV float64
 	// scope秒すぎたものは消していく
 	for _, item := range b.recentTrades {
@@ -207,6 +278,7 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 			continue
 		}
 	}
+
 	first_in_scope := b.recentTrades[0]
 	// for _, item := range b.recentTrades {
 	// 	// IDEA 荷重加算しても良いかも/直近ほど重い
@@ -243,91 +315,15 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 		}
 	}
 
-	if !b.isEntry(buyV, sellV) {
-		return
+	if buyV == sellV {
+		return false, "", 0
 	}
-
+	is_entry = math.Max(buyV, sellV) > b.config.volumeTriger
 	if buyV > sellV {
-		if b.config.reverse {
-			b.entry("sell", buyV, trade)
-		} else {
-			b.entry("buy", buyV, trade)
-		}
+		return is_entry, "buy", buyV
 	} else {
-		if b.config.reverse {
-			b.entry("buy", sellV, trade)
-		} else {
-			b.entry("sell", sellV, trade)
-		}
+		return is_entry, "sell", sellV
 	}
-}
-
-// TODO Important logic
-func (b *Bot) handleWaitForSettlement(trade Trade) {
-
-	// 建値より逆さやになったら損切り
-	// 損切り入れると極端に勝率がさがる
-	// if b.position.Side == "buy" && trade.Price < b.position.Price*(1-slippage*5) {
-	// 	b.log = append(b.log, fmt.Sprintf("%s, 損切り(ロング) market: %.3f, open: %.3f",
-	// 		trade.Time,
-	// 		trade.Price,
-	// 		b.position.Price,
-	// 	))
-	// 	b.settle(trade)
-	//
-	// 	// 損切りしたら一旦cooldown
-	// 	b.state = 2
-	// 	return
-	// } else if b.position.Side == "sell" && trade.Price > b.position.Price*(1+slippage*5) {
-	// 	b.log = append(b.log, fmt.Sprintf("%s, 損切り(ショート) market: %.3f, open: %.3f",
-	// 		trade.Time,
-	// 		trade.Price,
-	// 		b.position.Price,
-	// 	))
-	// 	b.settle(trade)
-	//
-	// 	// 損切りしたら一旦cooldown
-	// 	b.state = 2
-	// 	return
-	// }
-
-	// positionの方向に進んでいる以上は決済しない
-	// if trade.Side == b.position.Side {
-	// 	return
-	// }
-
-	// X%さやが開いたらclose
-	// TODO トレンドフォロー
-	var price_range float64
-	if b.position.Side == "buy" {
-		price_range = (trade.Price - b.position.Price) / b.position.Price
-	} else {
-		price_range = (b.position.Price - trade.Price) / b.position.Price
-	}
-	if price_range > b.config.settleRange {
-		b.settle(trade)
-		return
-	}
-
-	// 制限時間過ぎたら強制close
-	if trade.Time.Unix() > b.position.Time.Unix()+b.config.settleTerm {
-		b.settle(trade)
-		return
-	}
-}
-
-func (b *Bot) handleCoolDownTime(trade Trade) {
-	if trade.Time.Unix() < b.lastCloseTime.Unix()+b.config.scope {
-		return
-	}
-	// cool down time finish
-	b.state = 0
-	return
-}
-
-// IDEA フィルタリング等いれて改良する
-func (b *Bot) isEntry(buyVolume, sellVolume float64) bool {
-	return math.Max(buyVolume, sellVolume) > b.config.volumeTriger
 }
 
 func (b *Bot) entry(side string, v float64, trade Trade) {
