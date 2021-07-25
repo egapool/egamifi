@@ -15,6 +15,7 @@ import (
 var tradeMarketFlag string
 var tradeStartFlag string
 var tradeEndFlag string
+var tradeOutputFlag string
 
 // researchpriceCmd represents the researchprice command
 var researchtradesCmd = &cobra.Command{
@@ -38,6 +39,7 @@ func init() {
 	researchtradesCmd.Flags().StringVarP(&tradeMarketFlag, "market", "m", "", "Market name")
 	researchtradesCmd.Flags().StringVarP(&tradeStartFlag, "start", "s", "", "DateTime string of Start. (2021-02-10)")
 	researchtradesCmd.Flags().StringVarP(&tradeEndFlag, "end", "e", "", "DateTime string of Start. (2021-02-10)")
+	researchtradesCmd.Flags().StringVarP(&tradeOutputFlag, "output", "o", "", "Output file name")
 }
 
 func getTrades() {
@@ -56,7 +58,12 @@ func getTrades() {
 	endUnixtime := endTime.Unix()
 
 	dir := "data"
-	filename := fmt.Sprintf("ftx-trades-%s-%s-%s.csv", tradeMarketFlag, endTime.Format("20060102150405"), startTime.Format("20060102150405"))
+	var filename string
+	if tradeOutputFlag != "" {
+		filename = tradeOutputFlag
+	} else {
+		filename = fmt.Sprintf("ftx-trades-%s-%s-%s.csv", tradeMarketFlag, endTime.Format("20060102150405"), startTime.Format("20060102150405"))
+	}
 	filepath := dir + "/" + filename
 	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
