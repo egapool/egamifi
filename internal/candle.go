@@ -50,3 +50,7 @@ func (c *Candle) AddTrade(tradeAmount, tradePrice float64) {
 
 	c.TradeCount++
 }
+
+func (c *Candle) BodyLength() float64 {
+	return c.Close - c.Open
+}
