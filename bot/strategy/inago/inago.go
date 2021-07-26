@@ -18,6 +18,7 @@ import (
 const taker_fee float64 = 0.000679
 const slippage float64 = 0.0005
 const volatility_period int = 20
+const entry_volatility_rate float64 = 1
 
 // Inago Bot
 type Bot struct {
@@ -63,7 +64,7 @@ func (b *Bot) Result() {
 
 func (b *Bot) ResultOneline() {
 	if b.result.tradeCount() <= 10 {
-		return
+		// return
 	}
 	// start, end, triger_volume, scope, settle_term, price_ratio, reverse, profit, pnl, fee, long_count, short_count, win, lose, total, entry, rate
 	fmt.Printf("%s,%s,%.0f,%d,%d,%.5f,%.1f, %t,%.3f,%.3f,%.3f,%d,%d,%d,%d,%.3f,%.3f\n",
@@ -129,18 +130,18 @@ func (b *Bot) updateCandle(trade Trade) {
 	if len(b.candles) == 0 {
 		tp := internal.NewMinuteFromTime(trade.Time)
 		candle := internal.NewCandle(tp)
-		candle.AddTrade(trade.Size, trade.Price)
+		candle.AddTrade(trade.Size, trade.Price, trade.Side)
 		b.candles = append(b.candles, *candle)
 		return
 	}
 	latest_candle := b.candles[len(b.candles)-1]
 	if latest_candle.Period.Contain(trade.Time) {
-		latest_candle.AddTrade(trade.Size, trade.Price)
+		latest_candle.AddTrade(trade.Size, trade.Price, trade.Side)
 		b.candles[len(b.candles)-1] = latest_candle
 	} else {
 		tp := internal.NewMinuteFromTime(trade.Time)
 		candle := internal.NewCandle(tp)
-		candle.AddTrade(trade.Size, trade.Price)
+		candle.AddTrade(trade.Size, trade.Price, trade.Side)
 		b.candles = append(b.candles, *candle)
 		if len(b.candles) < volatility_period+1 {
 			return
@@ -197,6 +198,7 @@ func (b *Bot) Handle(t, side, price, size, liquidation string) {
 }
 
 func (b *Bot) handleWaitForOpenPosition(trade Trade) {
+	b.recentTrades = append(b.recentTrades, trade)
 	is_entry, entry_side, trigger_volume := b.isEntry(trade)
 	if !is_entry {
 		return
@@ -269,7 +271,6 @@ func (b *Bot) handleCoolDownTime(trade Trade) {
 
 // IDEA フィルタリング等いれて改良する
 func (b *Bot) isEntry(trade Trade) (is_entry bool, entry_side string, trigger_volume float64) {
-	b.recentTrades = append(b.recentTrades, trade)
 	var buyV, sellV float64
 	// scope秒すぎたものは消していく
 	for _, item := range b.recentTrades {
@@ -279,7 +280,7 @@ func (b *Bot) isEntry(trade Trade) (is_entry bool, entry_side string, trigger_vo
 		}
 	}
 
-	first_in_scope := b.recentTrades[0]
+	// first_in_scope := b.recentTrades[0]
 	// for _, item := range b.recentTrades {
 	// 	// IDEA 荷重加算しても良いかも/直近ほど重い
 	// 	// IDEA Done scope前と価格が開いていたらボーナスを付与する
@@ -299,18 +300,15 @@ func (b *Bot) isEntry(trade Trade) (is_entry bool, entry_side string, trigger_vo
 	// }
 
 	// 指数増加var
-	// if len(b.candles) < 2 {
-	// 	return
-	// }
+	previous_candle_close := b.candles[len(b.candles)-2].Close
 	for _, item := range b.recentTrades {
 		// IDEA 荷重加算しても良いかも/直近ほど重い
 		// IDEA Done 前の分足の終値と価格が開いていたら指数荷重ボーナスを付与する
 		if item.Side == "buy" {
-			// price_diff_rate := (item.Price / b.candles[len(b.candles)-2].Close) // ex. 0.01 or -0.01
-			price_diff_rate := (item.Price / first_in_scope.Price) // ex. 0.01 or -0.01
+			price_diff_rate := (item.Price / previous_candle_close) // ex. 0.01 or -0.01
 			buyV = buyV + item.Size*math.Pow(price_diff_rate, b.config.priceRatio)
 		} else {
-			price_diff_rate := (first_in_scope.Price / item.Price) // 0.01 or -0.01
+			price_diff_rate := (previous_candle_close / item.Price) // ex. 0.01 or -0.01
 			sellV = sellV + item.Size*math.Pow(price_diff_rate, b.config.priceRatio)
 		}
 	}
@@ -319,6 +317,17 @@ func (b *Bot) isEntry(trade Trade) (is_entry bool, entry_side string, trigger_vo
 		return false, "", 0
 	}
 	is_entry = math.Max(buyV, sellV) > b.config.volumeTriger
+	if !is_entry {
+		return false, "", 0
+	}
+
+	// 現行足の変動幅がボラティリティ以下ならエントリーしないfilter
+	candle_body := b.candles[len(b.candles)-1].BodyLength()
+	if math.Abs(candle_body) < b.volatility*entry_volatility_rate {
+		// fmt.Println("出来高はあるが変動幅がVolatility以下なのでスルー", trade)
+		return false, "", 0
+	}
+
 	if buyV > sellV {
 		return is_entry, "buy", buyV
 	} else {

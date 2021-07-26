@@ -6,25 +6,27 @@ type Candle struct {
 	High       float64
 	Low        float64
 	Close      float64
-	Volume     float64
+	BuyVolume  float64
+	SellVolume float64
 	TradeCount uint
 }
 
 // NewCandle returns a new *Candle for a given time period
 func NewCandle(period TimePeriod) (c *Candle) {
 	return &Candle{
-		Period: period,
-		Open:   0.0,
-		High:   0.0,
-		Low:    0.0,
-		Close:  0.0,
-		Volume: 0.0,
+		Period:     period,
+		Open:       0.0,
+		High:       0.0,
+		Low:        0.0,
+		Close:      0.0,
+		BuyVolume:  0.0,
+		SellVolume: 0.0,
 	}
 }
 
 // AddTrade adds a trade to this candle. It will determine if the current price is higher or lower than the min or max
 // price and increment the tradecount.
-func (c *Candle) AddTrade(tradeAmount, tradePrice float64) {
+func (c *Candle) AddTrade(tradeAmount, tradePrice float64, side string) {
 	if c.Open == 0.0 {
 		c.Open = tradePrice
 	}
@@ -42,10 +44,18 @@ func (c *Candle) AddTrade(tradeAmount, tradePrice float64) {
 		c.Low = tradePrice
 	}
 
-	if c.Volume == 0.0 {
-		c.Volume = tradeAmount
-	} else {
-		c.Volume += tradeAmount
+	if side == "buy" {
+		if c.BuyVolume == 0.0 {
+			c.BuyVolume = tradeAmount
+		} else {
+			c.BuyVolume += tradeAmount
+		}
+	} else if side == "sell" {
+		if c.SellVolume == 0.0 {
+			c.SellVolume = tradeAmount
+		} else {
+			c.SellVolume += tradeAmount
+		}
 	}
 
 	c.TradeCount++
