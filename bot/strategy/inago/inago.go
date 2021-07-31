@@ -17,11 +17,12 @@ import (
 
 const taker_fee float64 = 0.000679
 const slippage float64 = 0.0005
+
 const volatility_period int = 20
 const entry_volatility_rate float64 = 1
 const avg_volume_period int = 20
-const against_avg_volume_rate float64 = 20
-const minimum_volume float64 = 700
+const against_avg_volume_rate float64 = 10
+const minimum_volume float64 = 1000
 
 // Inago Bot
 type Bot struct {
@@ -233,7 +234,7 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 		return
 	}
 
-	b.entry(entry_side, trigger_volume, trade)
+	b.entry(entry_side, b.lot, trigger_volume, trade)
 	// if b.config.reverse {
 	// 	b.entry(opSide(entry_side), trigger_volume, trade)
 	// } else {
@@ -281,7 +282,7 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 					trade.Price,
 					b.position.Price,
 				))
-				b.entry(b.position.Side, trade.Size, trade)
+				b.entry(b.position.Side, b.lot*(1+float64(b.nunpin)), trade.Size, trade)
 				b.nunpin++
 			}
 		} else {
@@ -292,7 +293,7 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 					trade.Price,
 					b.position.Price,
 				))
-				b.entry(b.position.Side, trade.Size, trade)
+				b.entry(b.position.Side, b.lot*(1+float64(b.nunpin)), trade.Size, trade)
 				b.nunpin++
 			}
 		}
@@ -360,11 +361,12 @@ func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_v
 	}
 	// b.log = append(b.log, fmt.Sprintf("%s ロウソクの長さが %.3f x 2 を超えました", trade.Time, b.volatility))
 	// 条件2 外向きの場合はBB3にタッチしていること
+	r := 0.01
 	if over_bb2 {
-		if entry_side == "buy" && trade.Price > b.lowerPrice {
+		if entry_side == "buy" && trade.Price > b.lowerPrice*(1-r) {
 			return false, "", 0
 		}
-		if entry_side == "sell" && trade.Price < b.upperPrice {
+		if entry_side == "sell" && trade.Price < b.upperPrice*(1+r) {
 			return false, "", 0
 		}
 	}
@@ -450,7 +452,7 @@ func (b *Bot) isEntry(trade Trade) (is_entry bool, entry_side string, trigger_vo
 	}
 }
 
-func (b *Bot) entry(side string, v float64, trade Trade) {
+func (b *Bot) entry(side string, lot float64, v float64, trade Trade) {
 	if b.state != 0 {
 		return
 	}
@@ -462,7 +464,7 @@ func (b *Bot) entry(side string, v float64, trade Trade) {
 			trade.Size,
 			trade.Price,
 		))
-		b.openPosition(side, trade)
+		b.openPosition(side, lot, trade)
 	} else {
 		trade.Price *= (1 - slippage)
 		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ショートエントリー Size: %.4f, Price: %.3f",
@@ -471,7 +473,7 @@ func (b *Bot) entry(side string, v float64, trade Trade) {
 			trade.Size,
 			trade.Price,
 		))
-		b.openPosition(side, trade)
+		b.openPosition(side, lot, trade)
 	}
 }
 
@@ -528,7 +530,7 @@ func (b *Bot) settle(trade Trade) {
 	b.position = Position{}
 }
 
-func (b *Bot) openPosition(side string, trade Trade) {
+func (b *Bot) openPosition(side string, lot float64, trade Trade) {
 	// req := &orders.RequestForPlaceOrder{
 	// 	Market: b.market,
 	// 	Type:   "market",
@@ -542,7 +544,7 @@ func (b *Bot) openPosition(side string, trade Trade) {
 	new_position := Position{
 		Time:  trade.Time,
 		Side:  side,
-		Size:  b.lot,
+		Size:  lot,
 		Price: trade.Price,
 	}
 	b.position = b.position.add(new_position)
