@@ -39,13 +39,10 @@ func runBacktest() {
 }
 
 func runInago() {
-	fmt.Println("start, end, triger_volume, scope, settle_term, settle_range, price_ratio, reverse, profit, pnl, fee, trade_count, win, lose, total_entry, win_rate, PF")
-	volume_triger_list := []float64{1400, 1450, 1500, 1550, 1600}
-	scope_list := []int64{20, 40, 60}
-	settle_term_list := []int64{30, 50}
-	reverse_list := []bool{false}
-	settle_range_list := []float64{0.02, 0.025, 0.03, 0.035}
-	price_ratio_list := []float64{15, 25, 30, 40, 50}
+	fmt.Println("start, end, avg_volume_period, against_avg_volume_rate, minimum_rate, profit, pnl, fee, trade_count, win, lose, total_entry, win_rate, PF")
+	avg_volume_period_list := []int{10, 15, 20, 25}
+	against_avg_volume_rate_list := []float64{5, 10, 15, 20, 25}
+	minimum_rate_list := []float64{1000, 5000}
 
 	// goroutineで使うためにメモリに読み込み
 	// AXSの場合1日で〜20MB
@@ -65,25 +62,13 @@ func runInago() {
 	}
 	file.Close()
 
-	ch := make(chan bool, 12)
-	for _, volumeTriger := range volume_triger_list {
-		for _, scope := range scope_list {
-			for _, settleTerm := range settle_term_list {
-				for _, reverse := range reverse_list {
-					for _, settle_range := range settle_range_list {
-						for _, price_ratio := range price_ratio_list {
-							ch <- true
-							inago_config := inago.NewConfig(
-								scope,
-								volumeTriger,
-								settleTerm,
-								settle_range,
-								price_ratio,
-								reverse)
-							go exec(ch, trades, inago_config)
-						}
-					}
-				}
+	ch := make(chan bool, 1)
+	for _, avg_volume_period := range avg_volume_period_list {
+		for _, against_avg_volume_rate := range against_avg_volume_rate_list {
+			for _, minimum_rate := range minimum_rate_list {
+				ch <- true
+				inago_config := inago.NewConfig2(avg_volume_period, against_avg_volume_rate, minimum_rate)
+				go exec(ch, trades, inago_config)
 			}
 		}
 	}
