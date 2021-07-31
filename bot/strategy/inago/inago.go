@@ -348,11 +348,7 @@ func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_v
 		entry_side = "buy"
 		over_bb2 = true
 	} else {
-		if candle.BodyLength() > 0 {
-			entry_side = "buy"
-		} else {
-			entry_side = "sell"
-		}
+		entry_side = moving_side
 	}
 
 	// 条件1 candle bodyが2Std以上
@@ -363,10 +359,10 @@ func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_v
 	// 条件2 外向きの場合はBB3にタッチしていること
 	r := 0.01
 	if over_bb2 {
-		if entry_side == "buy" && trade.Price > b.lowerPrice*(1-r) {
+		if entry_side == "sell" && trade.Price < b.upperPrice*(1+r) {
 			return false, "", 0
 		}
-		if entry_side == "sell" && trade.Price < b.upperPrice*(1+r) {
+		if entry_side == "buy" && trade.Price > b.lowerPrice*(1-r) {
 			return false, "", 0
 		}
 	}
