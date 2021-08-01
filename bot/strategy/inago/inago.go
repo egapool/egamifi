@@ -35,11 +35,13 @@ type Bot struct {
 	config        Config // parameter
 	log           []string
 	loc           *time.Location
-	volatility    float64
-	middlePrice   float64
-	upperPrice    float64
-	lowerPrice    float64
 	nunpin        int
+
+	// markete data
+	volatility  float64
+	middlePrice float64
+	upperPrice  float64
+	lowerPrice  float64
 }
 
 func NewBot(market string, config Config) *Bot {
@@ -183,8 +185,8 @@ func (b *Bot) updateCandle(trade Trade) {
 	}
 }
 
-func (b *Bot) Handle(t, side, price, size, liquidation string) {
-	// jst, _ := time.LoadLocation("Asia/Tokyo")
+// Backtestデータのハンドラー
+func (b *Bot) HandleBacktest(t, side, price, size, liquidation string) {
 	parseTime, _ := time.ParseInLocation("2006-01-02 15:04:05.00000", t, b.loc)
 	parseSize, _ := strconv.ParseFloat(size, 64)
 	parsePrice, _ := strconv.ParseFloat(price, 64)
@@ -195,7 +197,22 @@ func (b *Bot) Handle(t, side, price, size, liquidation string) {
 		Price:       parsePrice,
 		Liquidation: (liquidation == "true"),
 	}
+	b.process(trade)
+}
 
+// 日運用時に発生するデータのハンドラー
+func (b *Bot) Handle(t time.Time, side string, price, size float64, liquidation bool) {
+	trade := Trade{
+		Time:        t,
+		Side:        side,
+		Size:        size,
+		Price:       price,
+		Liquidation: liquidation,
+	}
+	b.process(trade)
+}
+
+func (b *Bot) process(trade Trade) {
 	// 約定履歴からOHLC作成
 	b.updateCandle(trade)
 
@@ -220,6 +237,7 @@ func (b *Bot) Handle(t, side, price, size, liquidation string) {
 	case 2:
 		b.handleCoolDownTime(trade)
 	}
+
 }
 
 func (b *Bot) handleWaitForOpenPosition(trade Trade) {

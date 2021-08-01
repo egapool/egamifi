@@ -1,17 +1,17 @@
 package bot
 
 type Backtest struct {
-	bot Bot
+	bot BotTest
 }
 
-type Bot interface {
+type BotTest interface {
 	InitBot()
-	Handle(t, side, size, price, liquidation string)
+	HandleBacktest(t, side, size, price, liquidation string)
 	Result()
 	ResultOneline()
 }
 
-func NewBacktest(bot Bot) Backtest {
+func NewBacktest(bot BotTest) Backtest {
 	return Backtest{
 		bot: bot,
 	}
@@ -22,7 +22,7 @@ func NewBacktest(bot Bot) Backtest {
 func (t *Backtest) Run(trades [][]string, is_combination bool) {
 	func() {
 		for _, line := range trades {
-			t.bot.Handle(line[1], line[2], line[3], line[4], line[5])
+			t.bot.HandleBacktest(line[1], line[2], line[3], line[4], line[5])
 		}
 		if is_combination {
 			t.bot.ResultOneline()
