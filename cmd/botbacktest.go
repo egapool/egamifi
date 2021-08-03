@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/egapool/egamifi/bot"
 	"github.com/egapool/egamifi/bot/strategy/inago"
@@ -62,22 +63,33 @@ func runInago() {
 	}
 	file.Close()
 
+	execute_time := time.Now().Format("2006-01-02-150405")
+
 	ch := make(chan bool, 1)
 	for _, avg_volume_period := range avg_volume_period_list {
 		for _, against_avg_volume_rate := range against_avg_volume_rate_list {
 			for _, minimum_rate := range minimum_rate_list {
 				ch <- true
 				inago_config := inago.NewConfig2(avg_volume_period, against_avg_volume_rate, minimum_rate)
-				go exec(ch, trades, inago_config)
+				go exec(ch, trades, inago_config, execute_time)
 			}
 		}
 	}
 
 }
-func exec(ch chan bool, trades [][]string, inago_config inago.Config) {
+func exec(ch chan bool, trades [][]string, inago_config inago.Config, execute_time string) {
 	defer func() {
 		<-ch
 	}()
-	backtest := bot.NewBacktest(inago.NewBot(testMarket, inago_config))
+	logdir := fmt.Sprintf("logs/test/%s/%s/%s", testStrategy, testMarket, execute_time)
+	if _, err := os.Stat(logdir); os.IsNotExist(err) {
+		os.MkdirAll(logdir, 0777)
+	}
+	logfile := fmt.Sprintf(logdir+"/%s.log", inago_config.Serialize2())
+	if err := os.Remove(logfile); err != nil {
+	}
+
+	logger := bot.NewLoggerBacktest(logfile)
+	backtest := bot.NewBacktest(inago.NewBot(testMarket, inago_config, logger))
 	backtest.Run(trades, true)
 }

@@ -1,11 +1,8 @@
 package inago
 
 import (
-	"encoding/csv"
 	"fmt"
-	"log"
 	"math"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -21,9 +18,16 @@ const slippage float64 = 0.0005
 const volatility_period int = 20
 const entry_volatility_rate float64 = 1
 
+type BotLogger interface {
+	Log(l string)
+	GetLogs() []string
+	Output()
+}
+
 // Inago Bot
 type Bot struct {
 	client        *rest.Client
+	logger        BotLogger
 	market        string
 	recentTrades  RecentTrades
 	lot           float64
@@ -33,7 +37,6 @@ type Bot struct {
 	candles       []internal.Candle
 	result        Result
 	config        Config // parameter
-	log           []string
 	loc           *time.Location
 	nunpin        int
 
@@ -44,11 +47,12 @@ type Bot struct {
 	lowerPrice  float64
 }
 
-func NewBot(market string, config Config) *Bot {
+func NewBot(market string, config Config, logger BotLogger) *Bot {
 	jst, _ := time.LoadLocation("Asia/Tokyo")
 
 	return &Bot{
 		// client:       client,
+		logger:       logger,
 		market:       market,
 		recentTrades: RecentTrades{},
 		lot:          3,
@@ -64,7 +68,7 @@ func (b *Bot) Result() {
 	b.result.render()
 	fmt.Println("")
 	fmt.Println("----- Log ------")
-	for _, l := range b.log {
+	for _, l := range b.logger.GetLogs() {
 		fmt.Println(l)
 	}
 }
@@ -90,27 +94,28 @@ func (b *Bot) ResultOneline() {
 		b.result.winRate(),
 		b.result.pf(),
 	)
+	b.logger.Output()
 
 	// logging into file
-	result_dir := fmt.Sprintf("result/inago/%s/%s-%s", b.market, b.result.startTime.Format("20060102150405"), b.result.endTime.Format("20060102150405"))
-	if _, err := os.Stat(result_dir); os.IsNotExist(err) {
-		os.MkdirAll(result_dir, 0777)
-	}
-
-	filepath := fmt.Sprintf(result_dir+"/%s.log", b.config.Serialize2())
-	if err := os.Remove(filepath); err != nil {
-	}
-	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE, 0600)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-	writer := csv.NewWriter(file)
-
-	for _, l := range b.log {
-		writer.Write([]string{l})
-	}
-	writer.Flush()
+	// result_dir := fmt.Sprintf("result/inago/%s/%s-%s", b.market, b.result.startTime.Format("20060102150405"), b.result.endTime.Format("20060102150405"))
+	// if _, err := os.Stat(result_dir); os.IsNotExist(err) {
+	// 	os.MkdirAll(result_dir, 0777)
+	// }
+	//
+	// filepath := fmt.Sprintf(result_dir+"/%s.log", b.config.Serialize2())
+	// if err := os.Remove(filepath); err != nil {
+	// }
+	// file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE, 0600)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer file.Close()
+	// writer := csv.NewWriter(file)
+	//
+	// for _, l := range b.log {
+	// 	writer.Write([]string{l})
+	// }
+	// writer.Flush()
 }
 
 type Trade struct {
@@ -291,7 +296,7 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 		if b.position.Side == "buy" {
 			if trade.Price < b.position.Price-b.volatility*nunpin_rate*(1+float64(b.nunpin)) {
 				b.state = 0
-				b.log = append(b.log, fmt.Sprintf("%s ナンピンしました, ナンピン価格: %.3f, 建値: %.3f",
+				b.logger.Log(fmt.Sprintf("%s ナンピンしました, ナンピン価格: %.3f, 建値: %.3f",
 					trade.Time,
 					trade.Price,
 					b.position.Price,
@@ -303,7 +308,7 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 		} else {
 			if trade.Price > b.position.Price+b.volatility*nunpin_rate*(1+float64(b.nunpin)) {
 				b.state = 0
-				b.log = append(b.log, fmt.Sprintf("%s ナンピンしました, ナンピン価格: %.3f, 建値: %.3f",
+				b.logger.Log(fmt.Sprintf("%s ナンピンしました, ナンピン価格: %.3f, 建値: %.3f",
 					trade.Time,
 					trade.Price,
 					b.position.Price,
@@ -408,7 +413,7 @@ func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_v
 			return false, "", 0, false
 		}
 	}
-	b.log = append(b.log, fmt.Sprintf("%s %s出来高 %.2f が過去%d足の出来高平均%.2f x %.1fを超えました",
+	b.logger.Log(fmt.Sprintf("%s %s出来高 %.2f が過去%d足の出来高平均%.2f x %.1fを超えました",
 		trade.Time,
 		moving_side,
 		v,
@@ -473,7 +478,7 @@ func (b *Bot) entry(side string, lot float64, v float64, trade Trade, reverse bo
 	}
 	if side == "buy" {
 		trade.Price *= (1 + slippage)
-		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ロングエントリー Size: %.4f, Price: %.3f",
+		b.logger.Log(fmt.Sprintf("%s, volume: %.4f ロングエントリー Size: %.4f, Price: %.3f",
 			trade.Time,
 			v,
 			trade.Size,
@@ -482,7 +487,7 @@ func (b *Bot) entry(side string, lot float64, v float64, trade Trade, reverse bo
 		b.openPosition(side, lot, trade, reverse)
 	} else {
 		trade.Price *= (1 - slippage)
-		b.log = append(b.log, fmt.Sprintf("%s, volume: %.4f ショートエントリー Size: %.4f, Price: %.3f",
+		b.logger.Log(fmt.Sprintf("%s, volume: %.4f ショートエントリー Size: %.4f, Price: %.3f",
 			trade.Time,
 			v,
 			trade.Size,
@@ -521,7 +526,7 @@ func (b *Bot) settle(trade Trade) {
 		}
 		b.result.shortCount++
 	}
-	b.log = append(b.log, fmt.Sprintf("%s, 決済しました  Size: %.3f, Price: %.3f, OpenTime: %s, Pnl: %.4f\n",
+	b.logger.Log(fmt.Sprintf("%s, 決済しました  Size: %.3f, Price: %.3f, OpenTime: %s, Pnl: %.4f\n",
 		trade.Time,
 		b.position.Size,
 		trade.Price,
@@ -564,7 +569,7 @@ func (b *Bot) openPosition(side string, lot float64, trade Trade, reverse bool) 
 		Reverse: reverse,
 	}
 	b.position = b.position.add(new_position)
-	b.log = append(b.log, fmt.Sprintf("%s, Position  %v",
+	b.logger.Log(fmt.Sprintf("%s, Position  %v",
 		trade.Time,
 		b.position))
 	b.state = 1

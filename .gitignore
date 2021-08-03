@@ -2,6 +2,7 @@ vendor
 notebook/cache/*
 data/*
 result/*
+logs/*
 result/inago/*
 !.gitkeep
 .env
