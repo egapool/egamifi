@@ -90,6 +90,7 @@ func exec(ch chan bool, trades [][]string, inago_config inago.Config, execute_ti
 	}
 
 	logger := bot.NewLoggerBacktest(logfile)
-	backtest := bot.NewBacktest(inago.NewBot(testMarket, inago_config, logger))
+	client := bot.NewTestClient()
+	backtest := bot.NewBacktest(inago.NewBot(client, testMarket, inago_config, logger))
 	backtest.Run(trades, true)
 }

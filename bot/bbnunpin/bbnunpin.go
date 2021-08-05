@@ -38,7 +38,7 @@ const (
 )
 const division_num = 4
 
-type notifer interface {
+type Notifer interface {
 	Notify(message string)
 }
 
@@ -58,11 +58,11 @@ type BbNunpin struct {
 	upperPrice  float64
 	lowerPrice  float64
 	volatility  float64
-	notifer     notifer
+	notifer     Notifer
 }
 
 func NewBbNunpin(client *rest.Client, market string, size float64) *BbNunpin {
-	var n notifer
+	var n Notifer
 	if os.Getenv("SLACK_CHANNEL") == "" {
 		n = notification.NewNone()
 	} else {

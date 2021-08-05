@@ -9,7 +9,6 @@ import (
 
 	"github.com/egapool/egamifi/internal"
 	"github.com/egapool/egamifi/internal/indicators"
-	"github.com/go-numb/go-ftx/rest"
 )
 
 const taker_fee float64 = 0.000679
@@ -24,9 +23,14 @@ type BotLogger interface {
 	Output()
 }
 
+type InagoClient interface {
+	MarketOrder(market string, side string, size float64, time time.Time, price float64) Position
+	Close(market string, position Position, price float64) float64
+}
+
 // Inago Bot
 type Bot struct {
-	client        *rest.Client
+	client        InagoClient
 	logger        BotLogger
 	market        string
 	recentTrades  RecentTrades
@@ -47,19 +51,21 @@ type Bot struct {
 	lowerPrice  float64
 }
 
-func NewBot(market string, config Config, logger BotLogger) *Bot {
+func NewBot(client InagoClient, market string, config Config, logger BotLogger) *Bot {
 	jst, _ := time.LoadLocation("Asia/Tokyo")
 
 	return &Bot{
-		// client:       client,
-		logger:       logger,
-		market:       market,
-		recentTrades: RecentTrades{},
-		lot:          3,
-		state:        0,
-		config:       config,
-		loc:          jst,
+		client: client,
+		logger: logger,
+		market: market,
+		lot:    3,
+		config: config,
+		loc:    jst,
 	}
+}
+
+func (b *Bot) Market() string {
+	return b.market
 }
 
 func (b *Bot) InitBot() {}
@@ -95,27 +101,6 @@ func (b *Bot) ResultOneline() {
 		b.result.pf(),
 	)
 	b.logger.Output()
-
-	// logging into file
-	// result_dir := fmt.Sprintf("result/inago/%s/%s-%s", b.market, b.result.startTime.Format("20060102150405"), b.result.endTime.Format("20060102150405"))
-	// if _, err := os.Stat(result_dir); os.IsNotExist(err) {
-	// 	os.MkdirAll(result_dir, 0777)
-	// }
-	//
-	// filepath := fmt.Sprintf(result_dir+"/%s.log", b.config.Serialize2())
-	// if err := os.Remove(filepath); err != nil {
-	// }
-	// file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE, 0600)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer file.Close()
-	// writer := csv.NewWriter(file)
-	//
-	// for _, l := range b.log {
-	// 	writer.Write([]string{l})
-	// }
-	// writer.Flush()
 }
 
 type Trade struct {
@@ -253,11 +238,6 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 	}
 
 	b.entry(entry_side, b.lot, trigger_volume, trade, reverse)
-	// if b.config.reverse {
-	// 	b.entry(opSide(entry_side), trigger_volume, trade)
-	// } else {
-	// 	b.entry(entry_side, trigger_volume, trade)
-	// }
 }
 
 // TODO Important logic
@@ -503,6 +483,7 @@ func (b *Bot) settle(trade Trade) {
 	}
 
 	// TODO 決済注文から結果を抽出
+	settle_price := b.client.Close(b.market, b.position, trade.Price)
 
 	// Fee
 	fee := trade.Price * b.lot * taker_fee * 2
@@ -510,7 +491,7 @@ func (b *Bot) settle(trade Trade) {
 	// market close order
 	var pnl float64
 	if b.position.Side == "buy" {
-		pnl = (trade.Price - b.position.Price) * b.position.Size
+		pnl = (settle_price - b.position.Price) * b.position.Size
 		b.result.longProfit = append(b.result.longProfit, pnl-fee)
 		b.result.longReturn = append(b.result.longReturn, 100*(pnl-fee)/b.position.Price)
 		if pnl-fee > 0 {
@@ -518,7 +499,7 @@ func (b *Bot) settle(trade Trade) {
 		}
 		b.result.longCount++
 	} else {
-		pnl = (b.position.Price - trade.Price) * b.position.Size
+		pnl = (b.position.Price - settle_price) * b.position.Size
 		b.result.shortProfit = append(b.result.shortProfit, pnl-fee)
 		b.result.shortReturn = append(b.result.shortReturn, 100*(pnl-fee)/b.position.Price)
 		if pnl-fee > 0 {
@@ -529,7 +510,7 @@ func (b *Bot) settle(trade Trade) {
 	b.logger.Log(fmt.Sprintf("%s, 決済しました  Size: %.3f, Price: %.3f, OpenTime: %s, Pnl: %.4f\n",
 		trade.Time,
 		b.position.Size,
-		trade.Price,
+		settle_price,
 		trade.Time.Sub(b.position.Time),
 		pnl-fee,
 	))
@@ -539,35 +520,14 @@ func (b *Bot) settle(trade Trade) {
 	// 最後に決済した時刻を保存
 	b.lastCloseTime = trade.Time
 
-	// IDEA 閾値どうする？
-	// if pnl > 0 {
-	// 	b.state = 2
-	// } else {
-	// 	b.state = 0
-	// }
 	b.state = 0
 	b.nunpin = 0
 	b.position = Position{}
 }
 
 func (b *Bot) openPosition(side string, lot float64, trade Trade, reverse bool) {
-	// req := &orders.RequestForPlaceOrder{
-	// 	Market: b.market,
-	// 	Type:   "market",
-	// 	Side:   side,
-	// 	Size:   b.lot,
-	// 	Ioc:    true}
-	// o, err := b.client.PlaceOrder(req)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	new_position := Position{
-		Time:    trade.Time,
-		Side:    side,
-		Size:    lot,
-		Price:   trade.Price,
-		Reverse: reverse,
-	}
+	new_position := b.client.MarketOrder(b.market, side, lot, trade.Time, trade.Price)
+	new_position.Reverse = reverse
 	b.position = b.position.add(new_position)
 	b.logger.Log(fmt.Sprintf("%s, Position  %v",
 		trade.Time,

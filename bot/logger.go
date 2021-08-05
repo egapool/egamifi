@@ -2,6 +2,7 @@ package bot
 
 import (
 	"encoding/csv"
+	"fmt"
 	"log"
 	"os"
 )
@@ -9,6 +10,20 @@ import (
 type Logger struct {
 	logfile string
 }
+
+func NewLogger(logfile string) *Logger {
+	return &Logger{logfile: logfile}
+}
+
+func (l *Logger) Log(new_log string) {
+	fmt.Println(new_log)
+}
+
+func (l *Logger) GetLogs() []string {
+	return []string{}
+}
+
+func (l *Logger) Output() {}
 
 type LoggerBacktest struct {
 	logfile string

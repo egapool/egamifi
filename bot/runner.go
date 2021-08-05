@@ -40,6 +40,7 @@ func (r *Runner) Run() {
 			switch v.Type {
 			case realtime.TRADES:
 				for _, trade := range v.Trades {
+					fmt.Printf("%s	%+v\n", v.Symbol, trade)
 					r.bot.Handle(trade.Time, trade.Side, trade.Size, trade.Price, trade.Liquidation)
 				}
 
