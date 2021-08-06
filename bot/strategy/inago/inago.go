@@ -149,6 +149,7 @@ func (b *Bot) updateCandle(trade Trade) {
 		latest_candle.AddTrade(trade.Size, trade.Price, trade.Side)
 		b.candles[len(b.candles)-1] = latest_candle
 	} else {
+		fmt.Println("Candle created: ", b.getCandle(0))
 		tp := internal.NewMinuteFromTime(trade.Time)
 		candle := internal.NewCandle(tp)
 		candle.AddTrade(trade.Size, trade.Price, trade.Side)
@@ -193,7 +194,7 @@ func (b *Bot) HandleBacktest(t, side, price, size, liquidation string) {
 // 日運用時に発生するデータのハンドラー
 func (b *Bot) Handle(t time.Time, side string, price, size float64, liquidation bool) {
 	trade := Trade{
-		Time:        t,
+		Time:        t.In(b.loc),
 		Side:        side,
 		Size:        size,
 		Price:       price,
@@ -441,7 +442,7 @@ func (b *Bot) isEntry(trade Trade) (is_entry bool, entry_side string, trigger_vo
 	// 現行足の変動幅がボラティリティ以下ならエントリーしないfilter
 	candle_body := b.candles[len(b.candles)-1].BodyLength()
 	if math.Abs(candle_body) < b.volatility*entry_volatility_rate {
-		// fmt.Println("出来高はあるが変動幅がVolatility以下なのでスルー", trade)
+		b.logger.Log(fmt.Sprintf("出来高はあるが変動幅がVolatility以下なのでスルー %+v", trade))
 		return false, "", 0
 	}
 
