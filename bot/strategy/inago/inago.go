@@ -149,7 +149,7 @@ func (b *Bot) updateCandle(trade Trade) {
 		latest_candle.AddTrade(trade.Size, trade.Price, trade.Side)
 		b.candles[len(b.candles)-1] = latest_candle
 	} else {
-		fmt.Println("Candle created: ", b.getCandle(0))
+		// fmt.Println("Candle created: ", b.getCandle(0))
 		tp := internal.NewMinuteFromTime(trade.Time)
 		candle := internal.NewCandle(tp)
 		candle.AddTrade(trade.Size, trade.Price, trade.Side)
@@ -179,13 +179,13 @@ func (b *Bot) updateCandle(trade Trade) {
 // Backtestデータのハンドラー
 func (b *Bot) HandleBacktest(t, side, price, size, liquidation string) {
 	parseTime, _ := time.ParseInLocation("2006-01-02 15:04:05.00000", t, b.loc)
-	parseSize, _ := strconv.ParseFloat(size, 64)
 	parsePrice, _ := strconv.ParseFloat(price, 64)
+	parseSize, _ := strconv.ParseFloat(size, 64)
 	trade := Trade{
 		Time:        parseTime,
 		Side:        strings.TrimSpace(side),
-		Size:        parseSize,
 		Price:       parsePrice,
+		Size:        parseSize,
 		Liquidation: (liquidation == "true"),
 	}
 	b.process(trade)
@@ -357,13 +357,15 @@ func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_v
 	}
 
 	// 条件1 candle bodyが2Std以上
-	if math.Abs(candle.BodyLength()) < 2.0*b.volatility {
+	if math.Abs(candle.BodyLength()) < 1.0*b.volatility {
 		return false, "", 0, false
 	}
+	// b.logger.Log(fmt.Sprintf("%s ボラが規定量を超えました", trade.Time))
 	// b.log = append(b.log, fmt.Sprintf("%s ロウソクの長さが %.3f x 2 を超えました", trade.Time, b.volatility))
 	// 条件2 外向きの場合はBB3にタッチしていること
-	r := 0.01
+	r := 0.005
 	if over_bb2 {
+		// b.logger.Log(fmt.Sprintf("%s %.3f, %.3f, %.3f, %s", trade.Time, trade.Price, b.upperPrice, b.lowerPrice, entry_side))
 		if entry_side == "sell" && trade.Price < b.upperPrice*(1+r) {
 			return false, "", 0, false
 		}
@@ -371,6 +373,7 @@ func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_v
 			return false, "", 0, false
 		}
 	}
+	// b.logger.Log(fmt.Sprintf("%s BB3を超えました", trade.Time))
 
 	// 条件3 出来高が過去X足の平均よりY倍あること
 	// 条件4 最低出来高を上回っていること
