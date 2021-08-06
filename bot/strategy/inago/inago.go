@@ -196,8 +196,8 @@ func (b *Bot) Handle(t time.Time, side string, price, size float64, liquidation 
 	trade := Trade{
 		Time:        t.In(b.loc),
 		Side:        side,
-		Size:        size,
 		Price:       price,
+		Size:        size,
 		Liquidation: liquidation,
 	}
 	b.process(trade)

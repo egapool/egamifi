@@ -45,6 +45,7 @@ func (c *Client) MarketOrder(market string, side string, size float64, time time
 		Ioc:    true}
 	o, err := c.client.PlaceOrder(req)
 	if err != nil {
+		c.notifer.Notify("Fail Open Order: " + err.Error())
 		log.Fatal(err)
 	}
 	return inago.Position{
@@ -72,6 +73,7 @@ func (c *Client) Close(market string, p inago.Position, price float64) float64 {
 	fmt.Println(req)
 	o, err := c.client.PlaceOrder(req)
 	if err != nil {
+		c.notifer.Notify("Fail Close Order: " + err.Error())
 		log.Fatal(err)
 	}
 	return o.Price

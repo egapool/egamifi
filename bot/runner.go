@@ -42,7 +42,7 @@ func (r *Runner) Run() {
 			case realtime.TRADES:
 				for _, trade := range v.Trades {
 					fmt.Printf("%s	%.3f, %.2f, %s\n", trade.Time.In(jst), trade.Price, trade.Size, trade.Side)
-					r.bot.Handle(trade.Time, trade.Side, trade.Size, trade.Price, trade.Liquidation)
+					r.bot.Handle(trade.Time, trade.Side, trade.Price, trade.Size, trade.Liquidation)
 				}
 
 			case realtime.ORDERBOOK:
