@@ -12,7 +12,7 @@ import (
 )
 
 const taker_fee float64 = 0.000679
-const slippage float64 = 0.0005
+const slippage float64 = 0.0007
 
 const volatility_period int = 20
 const entry_volatility_rate float64 = 1
@@ -58,7 +58,7 @@ func NewBot(client InagoClient, market string, config Config, logger BotLogger) 
 		client: client,
 		logger: logger,
 		market: market,
-		lot:    3,
+		lot:    1,
 		config: config,
 		loc:    jst,
 	}

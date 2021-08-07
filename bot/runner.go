@@ -50,6 +50,9 @@ func (r *Runner) Run() {
 
 			case realtime.UNDEFINED:
 				fmt.Printf("UNDEFINED %s	%s\n", v.Symbol, v.Results.Error())
+
+			case realtime.ERROR:
+				fmt.Printf("%s	エラーを補足\n", v.Symbol)
 			}
 		}
 	}

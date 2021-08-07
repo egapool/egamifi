@@ -48,11 +48,13 @@ func (c *Client) MarketOrder(market string, side string, size float64, time time
 		c.notifer.Notify("Fail Open Order: " + err.Error())
 		log.Fatal(err)
 	}
+	fmt.Println("Order Response from FTX: ", o)
 	return inago.Position{
-		Time:  o.CreatedAt,
+		// Time:  o.CreatedAt,
+		Time:  time,
 		Side:  o.Side,
 		Size:  o.Size,
-		Price: o.Price,
+		Price: price,
 	}
 }
 
