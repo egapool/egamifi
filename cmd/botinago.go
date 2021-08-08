@@ -9,7 +9,7 @@ import (
 )
 
 var inagoMarketFlag string
-var inagoLotFlag float64
+var inagoConfigLot float64
 
 // researchpriceCmd represents the researchprice command
 var botInagoCmd = &cobra.Command{
@@ -24,18 +24,17 @@ var botInagoCmd = &cobra.Command{
 func init() {
 	botCmd.AddCommand(botInagoCmd)
 	botInagoCmd.Flags().StringVarP(&inagoMarketFlag, "market", "m", "AXS-PERP", "Market name")
-	botInagoCmd.Flags().Float64VarP(&inagoLotFlag, "lot", "l", 3, "Market name")
+	botInagoCmd.Flags().Float64VarP(&inagoConfigLot, "lot", "l", 3, "Market name")
 }
 
 func runInagoBot() {
-	// client := client.NewSubRestClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"), os.Getenv("FTX_SUBACCOUNT"))
 	config := inago.NewConfig2(
-		inagoLotFlag,
+		inagoConfigLot,
 		20,
-		5,
-		4000,
-		0.005,
-		1,
+		15,
+		1000,
+		0.001,
+		1.5,
 	)
 	logger := bot.NewLogger("logs.log")
 	client := bot.NewClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"), os.Getenv("FTX_SUBACCOUNT"))
