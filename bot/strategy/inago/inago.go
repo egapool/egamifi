@@ -14,7 +14,6 @@ import (
 const taker_fee float64 = 0.000679
 const slippage float64 = 0.0007
 
-const volatility_period int = 20
 const entry_volatility_rate float64 = 1
 
 type BotLogger interface {
@@ -83,12 +82,14 @@ func (b *Bot) ResultOneline() {
 		// return
 	}
 	// start, end, avg_volume_period, against_avg_volume_rate, minimum_rate, profit, pnl, fee, long_count, short_count, win, lose, total, entry, rate
-	fmt.Printf("%s,%s,%d,%.1f,%.0f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%.3f,%.3f,%s\n",
+	fmt.Printf("%s,%s,%d,%.1f,%.0f,%.3f,%.1f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%.3f,%.3f,%s\n",
 		b.result.startTime.Format("20060102150405"),
 		b.result.endTime.Format("20060102150405"),
 		b.config.avgVolumePeriod,
 		b.config.againstAvgVolumeRate,
 		b.config.minimumVolume,
+		b.config.guardOverBb3,
+		b.config.minimumCandleLength,
 		b.result.totalPnl-b.result.totalFee,
 		b.result.totalPnl,
 		b.result.totalFee,
@@ -154,16 +155,16 @@ func (b *Bot) updateCandle(trade Trade) {
 		candle := internal.NewCandle(tp)
 		candle.AddTrade(trade.Size, trade.Price, trade.Side)
 		b.candles = append(b.candles, *candle)
-		if len(b.candles) < volatility_period+1 {
+		if len(b.candles) < b.config.avgVolumePeriod+1 {
 			return
 		}
 		// ボラティリティを計算
 		var mf indicators.Mfloat
-		for _, c := range b.candles[len(b.candles)-(volatility_period+1) : len(b.candles)-1] {
+		for _, c := range b.candles[len(b.candles)-(b.config.avgVolumePeriod+1) : len(b.candles)-1] {
 			mf = append(mf, c.Close)
 		}
 		b.volatility = indicators.Std(mf)
-		middle, upper, lower := indicators.BollingerBands(mf, volatility_period, 3)
+		middle, upper, lower := indicators.BollingerBands(mf, b.config.avgVolumePeriod, 3)
 		middle_price := middle[len(middle)-1:][0]
 		upper_price := upper[len(upper)-1:][0]
 		lower_price := lower[len(lower)-1:][0]
@@ -207,7 +208,7 @@ func (b *Bot) process(trade Trade) {
 	// 約定履歴からOHLC作成
 	b.updateCandle(trade)
 
-	if len(b.candles) < volatility_period+1 {
+	if len(b.candles) < b.config.avgVolumePeriod+1 {
 		return
 	}
 
@@ -309,14 +310,15 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 	} else {
 		price_range = (b.position.Price - trade.Price) / b.position.Price
 	}
-	var settleRange float64 = 0.0025
+	var settleRange float64 = 0.0045
+	// var settleRange float64 = 0.01
 	if price_range > settleRange {
 		b.logger.Log("利確幅到達につき close")
 		b.settle(trade)
 		return
 	}
 
-	var settleTerm int64 = 60
+	var settleTerm int64 = 60 * 2
 	// 制限時間過ぎたら強制close
 	if trade.Time.Unix() > b.position.Time.Unix()+settleTerm {
 		b.settle(trade)
@@ -358,13 +360,13 @@ func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_v
 	}
 
 	// 条件1 candle bodyが2Std以上
-	if math.Abs(candle.BodyLength()) < 1.0*b.volatility {
+	if math.Abs(candle.BodyLength()) < b.config.minimumCandleLength*b.volatility {
 		return false, "", 0, false
 	}
 	// b.logger.Log(fmt.Sprintf("%s ボラが規定量を超えました", trade.Time))
 	// b.log = append(b.log, fmt.Sprintf("%s ロウソクの長さが %.3f x 2 を超えました", trade.Time, b.volatility))
 	// 条件2 外向きの場合はBB3にタッチしていること
-	r := 0.005
+	r := b.config.guardOverBb3
 	if over_bb2 {
 		// b.logger.Log(fmt.Sprintf("%s %.3f, %.3f, %.3f, %s", trade.Time, trade.Price, b.upperPrice, b.lowerPrice, entry_side))
 		if entry_side == "sell" && trade.Price < b.upperPrice*(1+r) {

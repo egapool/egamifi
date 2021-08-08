@@ -29,7 +29,14 @@ func init() {
 
 func runInagoBot() {
 	// client := client.NewSubRestClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"), os.Getenv("FTX_SUBACCOUNT"))
-	config := inago.NewConfig2(inagoLotFlag, 20, 5, 4000)
+	config := inago.NewConfig2(
+		inagoLotFlag,
+		20,
+		5,
+		4000,
+		0.005,
+		1,
+	)
 	logger := bot.NewLogger("logs.log")
 	client := bot.NewClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"), os.Getenv("FTX_SUBACCOUNT"))
 	runner := bot.NewRunner(inago.NewBot(client, inagoMarketFlag, config, logger))
