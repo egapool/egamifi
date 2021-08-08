@@ -33,8 +33,8 @@ func runInagoBot() {
 		20,
 		15,
 		1000,
-		0.001,
-		1.5,
+		0.002,
+		2,
 	)
 	logger := bot.NewLogger("logs.log")
 	client := bot.NewClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"), os.Getenv("FTX_SUBACCOUNT"))

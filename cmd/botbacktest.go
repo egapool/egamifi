@@ -45,8 +45,8 @@ func runInago() {
 	avg_volume_period_list := []int{20}
 	against_avg_volume_rate_list := []float64{10, 15, 20}
 	minimum_rate_list := []float64{1000}
-	guard_over_bb3_list := []float64{0.001, 0.003, 0.005}
-	minimum_candle_length_list := []float64{1.5}
+	guard_over_bb3_list := []float64{0.001, 0.0015, 0.002, 0.003}
+	minimum_candle_length_list := []float64{2}
 
 	// goroutineで使うためにメモリに読み込み
 	// AXSの場合1日で〜20MB

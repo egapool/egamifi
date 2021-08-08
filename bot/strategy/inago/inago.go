@@ -12,6 +12,7 @@ import (
 )
 
 const taker_fee float64 = 0.000679
+const maker_fee float64 = 0.000194
 const slippage float64 = 0.0007
 
 const entry_volatility_rate float64 = 1
@@ -42,6 +43,7 @@ type Bot struct {
 	config        Config // parameter
 	loc           *time.Location
 	nunpin        int
+	paidFee       float64 // OpenからCloseまでの累積Fee
 
 	// markete data
 	volatility  float64
@@ -272,9 +274,10 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 	// }
 
 	// 建値より1Volatility分逆さやになったらナンピン
+	var max_nunpin_cnt int = 2
 	var nunpin_rate float64 = 1
 	var nunpin_offtime int64 = 5
-	if b.position.Reverse && b.nunpin < 2 && trade.Time.Unix() > b.position.Time.Unix()+nunpin_offtime {
+	if b.position.Reverse && b.nunpin < max_nunpin_cnt && trade.Time.Unix() > b.position.Time.Unix()+nunpin_offtime {
 		if b.position.Side == "buy" {
 			if trade.Price < b.position.Price-b.volatility*nunpin_rate*(1+float64(b.nunpin)) {
 				b.state = 0
@@ -302,26 +305,42 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 		}
 	}
 
+	// StopLoss
+	if b.nunpin >= max_nunpin_cnt {
+		if b.position.Side == "buy" {
+			if trade.Price < b.position.Price-b.volatility {
+				b.logger.Log(fmt.Sprintf("価格が建値 (%.5f) より1Volatility下 (%.5f) を下回ったので損切りします", b.position.Price, b.position.Price-b.volatility))
+				b.settle(trade, true)
+				return
+			}
+		} else {
+			if trade.Price > b.position.Price+b.volatility {
+				b.logger.Log(fmt.Sprintf("価格が建値 (%.5f) より1Volatility上 (%.5f) を上回ったので損切りします", b.position.Price, b.position.Price+b.volatility))
+				b.settle(trade, true)
+				return
+			}
+		}
+	}
+
 	// X%さやが開いたらclose
-	// TODO トレンドフォロー
 	var price_range float64
 	if b.position.Side == "buy" {
 		price_range = (trade.Price - b.position.Price) / b.position.Price
 	} else {
 		price_range = (b.position.Price - trade.Price) / b.position.Price
 	}
-	var settleRange float64 = 0.0045
-	// var settleRange float64 = 0.01
-	if price_range > settleRange {
+	var ProfitabilityRange float64 = 0.005
+	// var ProfitablityRange float64 = 0.01
+	if price_range > ProfitabilityRange {
 		b.logger.Log("利確幅到達につき close")
-		b.settle(trade)
+		b.settle(trade, false)
 		return
 	}
 
-	var settleTerm int64 = 60 * 2
+	var maxKeppTime int64 = 60 * 3
 	// 制限時間過ぎたら強制close
-	if trade.Time.Unix() > b.position.Time.Unix()+settleTerm {
-		b.settle(trade)
+	if trade.Time.Unix() > b.position.Time.Unix()+maxKeppTime {
+		b.settle(trade, true)
 		return
 	}
 }
@@ -484,16 +503,20 @@ func (b *Bot) entry(side string, lot float64, v float64, trade Trade, reverse bo
 	}
 }
 
-func (b *Bot) settle(trade Trade) {
+func (b *Bot) settle(trade Trade, isTaker bool) {
 	if b.state != 1 {
 		return
 	}
 
-	// TODO 決済注文から結果を抽出
 	settle_price := b.client.Close(b.market, b.position, trade.Price)
 
-	// Fee
-	fee := trade.Price * b.config.lot * taker_fee * 2
+	// Fe
+	if isTaker {
+		b.paidFee += trade.Price * b.position.Size * taker_fee
+	} else {
+		b.paidFee += trade.Price * b.position.Size * maker_fee
+	}
+	fee := b.paidFee
 
 	// market close order
 	var pnl float64
@@ -531,6 +554,7 @@ func (b *Bot) settle(trade Trade) {
 	b.state = 0
 	b.nunpin = 0
 	b.position = Position{}
+	b.paidFee = 0
 }
 
 func (b *Bot) openPosition(side string, lot float64, trade Trade, reverse bool) {
@@ -541,6 +565,7 @@ func (b *Bot) openPosition(side string, lot float64, trade Trade, reverse bool) 
 		trade.Time,
 		b.position))
 	b.state = 1
+	b.paidFee += trade.Price * lot * taker_fee
 }
 
 func (p *Position) add(position Position) Position {
@@ -551,5 +576,4 @@ func (p *Position) add(position Position) Position {
 		Price:   (p.Price*p.Size + position.Price*position.Size) / (p.Size + position.Size),
 		Reverse: position.Reverse,
 	}
-
 }
