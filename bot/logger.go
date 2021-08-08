@@ -15,6 +15,10 @@ func NewLogger(logfile string) *Logger {
 	return &Logger{logfile: logfile}
 }
 
+func (l *Logger) Logfile() string {
+	return l.logfile
+}
+
 func (l *Logger) Log(new_log string) {
 	fmt.Println(new_log)
 }
@@ -32,6 +36,9 @@ type LoggerBacktest struct {
 
 func NewLoggerBacktest(logfile string) *LoggerBacktest {
 	return &LoggerBacktest{logfile: logfile}
+}
+func (l *LoggerBacktest) Logfile() string {
+	return l.logfile
 }
 
 func (l *LoggerBacktest) Log(new_log string) {

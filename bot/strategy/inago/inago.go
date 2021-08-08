@@ -21,6 +21,7 @@ type BotLogger interface {
 	Log(l string)
 	GetLogs() []string
 	Output()
+	Logfile() string
 }
 
 type InagoClient interface {
@@ -82,7 +83,7 @@ func (b *Bot) ResultOneline() {
 		// return
 	}
 	// start, end, avg_volume_period, against_avg_volume_rate, minimum_rate, profit, pnl, fee, long_count, short_count, win, lose, total, entry, rate
-	fmt.Printf("%s,%s,%d,%.1f,%.0f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%.3f,%.3f\n",
+	fmt.Printf("%s,%s,%d,%.1f,%.0f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%.3f,%.3f,%s\n",
 		b.result.startTime.Format("20060102150405"),
 		b.result.endTime.Format("20060102150405"),
 		b.config.avgVolumePeriod,
@@ -97,6 +98,7 @@ func (b *Bot) ResultOneline() {
 		b.result.longCount+b.result.shortCount,
 		b.result.winRate(),
 		b.result.pf(),
+		b.logger.Logfile(),
 	)
 	b.logger.Output()
 }
@@ -509,10 +511,11 @@ func (b *Bot) settle(trade Trade) {
 		}
 		b.result.shortCount++
 	}
-	b.logger.Log(fmt.Sprintf("%s, 決済しました  Size: %.3f, Price: %.5f, OpenTime: %s, Pnl: %.4f\n",
+	b.logger.Log(fmt.Sprintf("%s, 決済しました  Size: %.3f, Price: %.5f, 建値: %.5f, OpenTime: %s, Pnl: %.4f\n",
 		trade.Time,
 		b.position.Size,
 		settle_price,
+		b.position.Price,
 		trade.Time.Sub(b.position.Time),
 		pnl-fee,
 	))
