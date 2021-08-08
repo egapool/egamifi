@@ -34,7 +34,6 @@ type Bot struct {
 	logger        BotLogger
 	market        string
 	recentTrades  RecentTrades
-	lot           float64
 	state         int // 1: open position, 2: cool down time
 	position      Position
 	lastCloseTime time.Time
@@ -58,7 +57,6 @@ func NewBot(client InagoClient, market string, config Config, logger BotLogger) 
 		client: client,
 		logger: logger,
 		market: market,
-		lot:    1,
 		config: config,
 		loc:    jst,
 	}
@@ -238,7 +236,7 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 		return
 	}
 
-	b.entry(entry_side, b.lot, trigger_volume, trade, reverse)
+	b.entry(entry_side, b.config.lot, trigger_volume, trade, reverse)
 }
 
 // TODO Important logic
@@ -282,7 +280,7 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 					trade.Price,
 					b.position.Price,
 				))
-				b.entry(b.position.Side, b.lot*(1+float64(b.nunpin)), trade.Size, trade, true)
+				b.entry(b.position.Side, b.config.lot*(1+float64(b.nunpin)), trade.Size, trade, true)
 				b.nunpin++
 				return
 			}
@@ -294,7 +292,7 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 					trade.Price,
 					b.position.Price,
 				))
-				b.entry(b.position.Side, b.lot*(1+float64(b.nunpin)), trade.Size, trade, true)
+				b.entry(b.position.Side, b.config.lot*(1+float64(b.nunpin)), trade.Size, trade, true)
 				b.nunpin++
 				return
 			}
@@ -490,7 +488,7 @@ func (b *Bot) settle(trade Trade) {
 	settle_price := b.client.Close(b.market, b.position, trade.Price)
 
 	// Fee
-	fee := trade.Price * b.lot * taker_fee * 2
+	fee := trade.Price * b.config.lot * taker_fee * 2
 
 	// market close order
 	var pnl float64

@@ -4,6 +4,7 @@ import "fmt"
 
 // Config is a parameter store of Inago Bot
 type Config struct {
+	lot                  float64
 	volumeTriger         float64
 	scope                int64 // second
 	settleTerm           int64
@@ -26,8 +27,9 @@ func NewConfig(scope int64, volumeTriger float64, settleTerm int64, settleRange,
 	}
 }
 
-func NewConfig2(avgVolumePeriod int, againstAvgVolumeRate, minimumVolume float64) Config {
+func NewConfig2(lot float64, avgVolumePeriod int, againstAvgVolumeRate, minimumVolume float64) Config {
 	return Config{
+		lot:                  lot,
 		avgVolumePeriod:      avgVolumePeriod,
 		againstAvgVolumeRate: againstAvgVolumeRate,
 		minimumVolume:        minimumVolume,

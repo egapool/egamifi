@@ -78,7 +78,8 @@ func (c *Client) Close(market string, p inago.Position, price float64) float64 {
 		c.notifer.Notify("Fail Close Order: " + err.Error())
 		log.Fatal(err)
 	}
-	return o.Price
+	fmt.Println(o)
+	return price
 }
 
 type TestClient struct {

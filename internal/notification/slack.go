@@ -20,7 +20,7 @@ func NewNotifer(channel string, url string) *Notifer {
 }
 
 func (n *Notifer) Notify(message string) {
-	text := "<!channel> " + message + time.Now().Format(time.UnixDate)
+	text := "<!channel> " + message + " " + time.Now().Format(time.UnixDate)
 	jsonStr := `{"channel":"` + n.Channel + `","text":"` + text + `"}`
 	req, err := http.NewRequest(
 		"POST",

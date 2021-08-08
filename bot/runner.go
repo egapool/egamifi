@@ -33,7 +33,7 @@ func (r *Runner) Run() {
 
 	ch := make(chan realtime.Response)
 	go realtime.Connect(ctx, ch, []string{"trades"}, []string{r.bot.Market()}, nil)
-	jst, _ := time.LoadLocation("Asia/Tokyo")
+	// jst, _ := time.LoadLocation("Asia/Tokyo")
 
 	for {
 		select {
@@ -41,7 +41,7 @@ func (r *Runner) Run() {
 			switch v.Type {
 			case realtime.TRADES:
 				for _, trade := range v.Trades {
-					fmt.Printf("%s	%.3f, %.2f, %s\n", trade.Time.In(jst), trade.Price, trade.Size, trade.Side)
+					// fmt.Printf("%s	%.3f, %.2f, %s\n", trade.Time.In(jst), trade.Price, trade.Size, trade.Side)
 					r.bot.Handle(trade.Time, trade.Side, trade.Price, trade.Size, trade.Liquidation)
 				}
 

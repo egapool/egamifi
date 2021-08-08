@@ -70,7 +70,7 @@ func runInago() {
 		for _, against_avg_volume_rate := range against_avg_volume_rate_list {
 			for _, minimum_rate := range minimum_rate_list {
 				ch <- true
-				inago_config := inago.NewConfig2(avg_volume_period, against_avg_volume_rate, minimum_rate)
+				inago_config := inago.NewConfig2(3, avg_volume_period, against_avg_volume_rate, minimum_rate)
 				go exec(ch, trades, inago_config, execute_time)
 			}
 		}
