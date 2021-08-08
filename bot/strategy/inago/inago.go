@@ -309,8 +309,9 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 	} else {
 		price_range = (b.position.Price - trade.Price) / b.position.Price
 	}
-	var settleRange float64 = 0.01
+	var settleRange float64 = 0.0025
 	if price_range > settleRange {
+		b.logger.Log("利確幅到達につき close")
 		b.settle(trade)
 		return
 	}
