@@ -277,7 +277,7 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 		if b.position.Side == "buy" {
 			if trade.Price < b.position.Price-b.volatility*nunpin_rate*(1+float64(b.nunpin)) {
 				b.state = 0
-				b.logger.Log(fmt.Sprintf("%s ナンピンしました, ナンピン価格: %.3f, 建値: %.3f",
+				b.logger.Log(fmt.Sprintf("%s ナンピンしました, ナンピン価格: %.5f, 建値: %.5f",
 					trade.Time,
 					trade.Price,
 					b.position.Price,
@@ -289,7 +289,7 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 		} else {
 			if trade.Price > b.position.Price+b.volatility*nunpin_rate*(1+float64(b.nunpin)) {
 				b.state = 0
-				b.logger.Log(fmt.Sprintf("%s ナンピンしました, ナンピン価格: %.3f, 建値: %.3f",
+				b.logger.Log(fmt.Sprintf("%s ナンピンしました, ナンピン価格: %.5f, 建値: %.5f",
 					trade.Time,
 					trade.Price,
 					b.position.Price,
@@ -462,7 +462,7 @@ func (b *Bot) entry(side string, lot float64, v float64, trade Trade, reverse bo
 	}
 	if side == "buy" {
 		trade.Price *= (1 + slippage)
-		b.logger.Log(fmt.Sprintf("%s, volume: %.4f ロングエントリー Size: %.4f, Price: %.3f",
+		b.logger.Log(fmt.Sprintf("%s, volume: %.4f ロングエントリー Size: %.4f, Price: %.5f",
 			trade.Time,
 			v,
 			trade.Size,
@@ -471,7 +471,7 @@ func (b *Bot) entry(side string, lot float64, v float64, trade Trade, reverse bo
 		b.openPosition(side, lot, trade, reverse)
 	} else {
 		trade.Price *= (1 - slippage)
-		b.logger.Log(fmt.Sprintf("%s, volume: %.4f ショートエントリー Size: %.4f, Price: %.3f",
+		b.logger.Log(fmt.Sprintf("%s, volume: %.4f ショートエントリー Size: %.4f, Price: %.5f",
 			trade.Time,
 			v,
 			trade.Size,
@@ -511,7 +511,7 @@ func (b *Bot) settle(trade Trade) {
 		}
 		b.result.shortCount++
 	}
-	b.logger.Log(fmt.Sprintf("%s, 決済しました  Size: %.3f, Price: %.3f, OpenTime: %s, Pnl: %.4f\n",
+	b.logger.Log(fmt.Sprintf("%s, 決済しました  Size: %.3f, Price: %.5f, OpenTime: %s, Pnl: %.4f\n",
 		trade.Time,
 		b.position.Size,
 		settle_price,

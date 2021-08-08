@@ -1,3 +1,5 @@
+builds: build build-linux
+
 build:
 	go build -mod=vendor -o ./bin/egamifi
 build-linux:
