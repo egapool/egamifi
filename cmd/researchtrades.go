@@ -16,16 +16,21 @@ var tradeMarketFlag string
 var tradeStartFlag string
 var tradeEndFlag string
 var tradeOutputFlag string
+var tradePeriodFlag int64
 
 // researchpriceCmd represents the researchprice command
 var researchtradesCmd = &cobra.Command{
 	Use:   "trades",
 	Short: "A brief description of your command",
-	Long:  `ex) egamifi research trades -m AXS-PERP -s "2021-07-15 23:00:00" -e "2021-07-15 23:07:00"`,
+	Long: `ex) egamifi research trades -m AXS-PERP -s "2021-07-15 23:00:00" -e "2021-07-15 23:07:00"
+
+    "p" option is how many seconds before the end time to start
+    ex) egamifi research trades -m AXS-PERP -e "2021-07-15 23:07:00" -p 3600
+    `,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("research trades called")
-		if tradeStartFlag == "" {
-			log.Fatal("start is required")
+		if tradeStartFlag == "" && tradePeriodFlag == 0 {
+			log.Fatal("start or period is required")
 		}
 		if tradeEndFlag == "" {
 			log.Fatal("end is required")
@@ -38,24 +43,31 @@ func init() {
 	researchCmd.AddCommand(researchtradesCmd)
 	researchtradesCmd.Flags().StringVarP(&tradeMarketFlag, "market", "m", "", "Market name")
 	researchtradesCmd.Flags().StringVarP(&tradeStartFlag, "start", "s", "", "DateTime string of Start. (2021-02-10)")
-	researchtradesCmd.Flags().StringVarP(&tradeEndFlag, "end", "e", "", "DateTime string of Start. (2021-02-10)")
+	researchtradesCmd.Flags().StringVarP(&tradeEndFlag, "end", "e", "", "DateTime string of End. (2021-02-10)")
 	researchtradesCmd.Flags().StringVarP(&tradeOutputFlag, "output", "o", "", "Output file name")
+	researchtradesCmd.Flags().Int64VarP(&tradePeriodFlag, "period", "p", 0, "Period time")
 }
 
 func getTrades() {
 	client := client.NewRestClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"))
 
 	jst, _ := time.LoadLocation("Asia/Tokyo")
-	startTime, err := time.ParseInLocation("2006-01-02 15:04:05", tradeStartFlag, jst)
-	if err != nil {
-		log.Fatal(err)
-	}
-	startUnixtime := startTime.Unix()
 	endTime, err := time.ParseInLocation("2006-01-02 15:04:05", tradeEndFlag, jst)
 	if err != nil {
 		log.Fatal(err)
 	}
 	endUnixtime := endTime.Unix()
+
+	var startTime time.Time
+	if tradeStartFlag != "" {
+		startTime, err = time.ParseInLocation("2006-01-02 15:04:05", tradeStartFlag, jst)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else if tradePeriodFlag != 0 {
+		startTime = endTime.Add(-time.Second * time.Duration(tradePeriodFlag))
+	}
+	startUnixtime := startTime.Unix()
 
 	dir := "data"
 	var filename string
