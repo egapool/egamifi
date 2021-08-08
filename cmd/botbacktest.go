@@ -68,14 +68,6 @@ func runInago() {
 
 	execute_time := time.Now().Format("2006-01-02-150405")
 
-	// pt := len(avg_volume_period_list) * len(against_avg_volume_rate_list) * len(minimum_rate_list) * len(guard_over_bb3_list) * len(minimum_candle_length_list)
-	//
-	// var cl int = pt / 6
-	// if cl == 0 {
-	// 	cl = 1
-	// }
-	// fmt.Println(pt, cl)
-
 	var wg sync.WaitGroup
 	ch := make(chan bool, 12)
 	for _, avg_volume_period := range avg_volume_period_list {
