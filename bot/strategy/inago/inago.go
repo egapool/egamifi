@@ -44,6 +44,7 @@ type Bot struct {
 	loc           *time.Location
 	nunpin        int
 	paidFee       float64 // OpenからCloseまでの累積Fee
+	firstOfCandle bool    // 足で一回だけ判定
 
 	// markete data
 	volatility  float64
@@ -56,11 +57,12 @@ func NewBot(client InagoClient, market string, config Config, logger BotLogger) 
 	jst, _ := time.LoadLocation("Asia/Tokyo")
 
 	return &Bot{
-		client: client,
-		logger: logger,
-		market: market,
-		config: config,
-		loc:    jst,
+		client:        client,
+		logger:        logger,
+		market:        market,
+		config:        config,
+		loc:           jst,
+		firstOfCandle: true,
 	}
 }
 
@@ -128,8 +130,8 @@ func (b *Bot) getCandle(offset int) internal.Candle {
 	return b.candles[len(b.candles)-1-offset]
 }
 
-func (b *Bot) avgVolume(side string, period int) (avg_volume float64) {
-	for _, c := range b.candles[len(b.candles)-period-1 : len(b.candles)-1] {
+func (b *Bot) avgVolume(side string, period, offset int) (avg_volume float64) {
+	for _, c := range b.candles[len(b.candles)-period-offset-1 : len(b.candles)-offset-1] {
 		if side == "buy" {
 			avg_volume += c.BuyVolume
 		} else {
@@ -153,6 +155,7 @@ func (b *Bot) updateCandle(trade Trade) {
 		b.candles[len(b.candles)-1] = latest_candle
 	} else {
 		// fmt.Println("Candle created: ", b.getCandle(0))
+		b.firstOfCandle = true
 		tp := internal.NewMinuteFromTime(trade.Time)
 		candle := internal.NewCandle(tp)
 		candle.AddTrade(trade.Size, trade.Price, trade.Side)
@@ -210,7 +213,7 @@ func (b *Bot) process(trade Trade) {
 	// 約定履歴からOHLC作成
 	b.updateCandle(trade)
 
-	if len(b.candles) < b.config.avgVolumePeriod+1 {
+	if len(b.candles) < b.config.avgVolumePeriod+2 {
 		return
 	}
 
@@ -223,7 +226,9 @@ func (b *Bot) process(trade Trade) {
 	switch b.state {
 	// neutral
 	case 0:
-		b.handleWaitForOpenPosition(trade)
+		if b.firstOfCandle {
+			b.handleWaitForOpenPosition(trade)
+		}
 		// open position
 	case 1:
 		b.handleWaitForSettlement(trade)
@@ -247,35 +252,9 @@ func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 // TODO Important logic
 func (b *Bot) handleWaitForSettlement(trade Trade) {
 
-	// 建値より逆さやになったら損切り
-	// 損切り入れると極端に勝率がさがる
-	// if b.position.Side == "buy" && trade.Price < b.position.Price*(1-slippage*5) {
-	// 	b.log = append(b.log, fmt.Sprintf("%s, 損切り(ロング) market: %.3f, open: %.3f",
-	// 		trade.Time,
-	// 		trade.Price,
-	// 		b.position.Price,
-	// 	))
-	// 	b.settle(trade)
-	//
-	// 	// 損切りしたら一旦cooldown
-	// 	b.state = 2
-	// 	return
-	// } else if b.position.Side == "sell" && trade.Price > b.position.Price*(1+slippage*5) {
-	// 	b.log = append(b.log, fmt.Sprintf("%s, 損切り(ショート) market: %.3f, open: %.3f",
-	// 		trade.Time,
-	// 		trade.Price,
-	// 		b.position.Price,
-	// 	))
-	// 	b.settle(trade)
-	//
-	// 	// 損切りしたら一旦cooldown
-	// 	b.state = 2
-	// 	return
-	// }
-
 	// 建値より1Volatility分逆さやになったらナンピン
 	var max_nunpin_cnt int = 2
-	var nunpin_rate float64 = 1
+	var nunpin_rate float64 = 2
 	var nunpin_offtime int64 = 5
 	if b.position.Reverse && b.nunpin < max_nunpin_cnt && trade.Time.Unix() > b.position.Time.Unix()+nunpin_offtime {
 		if b.position.Side == "buy" {
@@ -306,21 +285,22 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 	}
 
 	// StopLoss
-	if b.nunpin >= max_nunpin_cnt {
-		if b.position.Side == "buy" {
-			if trade.Price < b.position.Price-b.volatility {
-				b.logger.Log(fmt.Sprintf("価格が建値 (%.5f) より1Volatility下 (%.5f) を下回ったので損切りします", b.position.Price, b.position.Price-b.volatility))
-				b.settle(trade, true)
-				return
-			}
-		} else {
-			if trade.Price > b.position.Price+b.volatility {
-				b.logger.Log(fmt.Sprintf("価格が建値 (%.5f) より1Volatility上 (%.5f) を上回ったので損切りします", b.position.Price, b.position.Price+b.volatility))
-				b.settle(trade, true)
-				return
-			}
-		}
-	}
+	// if b.nunpin >= max_nunpin_cnt {
+	// 	loss_cut_range := b.volatility * 1
+	// 	if b.position.Side == "buy" {
+	// 		if trade.Price < b.position.Price-loss_cut_range {
+	// 			b.logger.Log(fmt.Sprintf("価格が建値 (%.5f) より1Volatility下 (%.5f) を下回ったので損切りします", b.position.Price, b.position.Price-loss_cut_range))
+	// 			b.settle(trade, true)
+	// 			return
+	// 		}
+	// 	} else {
+	// 		if trade.Price > b.position.Price+loss_cut_range {
+	// 			b.logger.Log(fmt.Sprintf("価格が建値 (%.5f) より1Volatility上 (%.5f) を上回ったので損切りします", b.position.Price, b.position.Price+loss_cut_range))
+	// 			b.settle(trade, true)
+	// 			return
+	// 		}
+	// 	}
+	// }
 
 	// X%さやが開いたらclose
 	var price_range float64
@@ -329,8 +309,8 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 	} else {
 		price_range = (b.position.Price - trade.Price) / b.position.Price
 	}
+	// var ProfitabilityRange float64 = 0.03
 	var ProfitabilityRange float64 = 0.005
-	// var ProfitablityRange float64 = 0.01
 	if price_range > ProfitabilityRange {
 		b.logger.Log("利確幅到達につき close")
 		b.settle(trade, false)
@@ -346,12 +326,59 @@ func (b *Bot) handleWaitForSettlement(trade Trade) {
 }
 
 func (b *Bot) handleCoolDownTime(trade Trade) {
-	if trade.Time.Unix() < b.lastCloseTime.Unix()+b.config.scope {
+	if trade.Time.Unix() < b.lastCloseTime.Unix()+60 {
 		return
 	}
 	// cool down time finish
 	b.state = 0
 	return
+}
+func (b *Bot) isEntry3(trade Trade) (is_entry bool, entry_side string, trigger_volume float64, reverse bool) {
+	b.firstOfCandle = false
+	prev_candle := b.getCandle(1)
+	var moving_side string
+	if prev_candle.BodyLength() > 0 {
+		moving_side = "buy"
+	} else {
+		moving_side = "sell"
+	}
+
+	prev_prev_candle := b.getCandle(2)
+	if math.Abs(prev_candle.BodyLength()) < math.Abs(prev_prev_candle.BodyLength())*2 {
+		return false, "", 0, false
+	}
+
+	var v, avgV float64
+	if moving_side == "buy" {
+		v = prev_candle.BuyVolume
+		if v < b.config.minimumVolume {
+			return false, "", 0, false
+		}
+		avgV = b.avgVolume(moving_side, b.config.avgVolumePeriod, 1)
+		if v < avgV*b.config.againstAvgVolumeRate {
+			return false, "", 0, false
+		}
+	} else {
+		v = prev_candle.SellVolume
+		if v < b.config.minimumVolume {
+			return false, "", 0, false
+		}
+		avgV = b.avgVolume(moving_side, b.config.avgVolumePeriod, 1)
+		if v < avgV*b.config.againstAvgVolumeRate {
+			return false, "", 0, false
+		}
+	}
+
+	b.logger.Log(fmt.Sprintf("%s %s出来高 %.2f が過去%d足の出来高平均%.2f x %.1fを超えました",
+		trade.Time,
+		moving_side,
+		v,
+		b.config.avgVolumePeriod,
+		avgV,
+		b.config.againstAvgVolumeRate,
+	))
+
+	return true, moving_side, v, false
 }
 
 func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_volume float64, reverse bool) {
@@ -405,7 +432,7 @@ func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_v
 		if v < b.config.minimumVolume {
 			return false, "", 0, false
 		}
-		avgV = b.avgVolume(moving_side, b.config.avgVolumePeriod)
+		avgV = b.avgVolume(moving_side, b.config.avgVolumePeriod, 0)
 		if v < avgV*b.config.againstAvgVolumeRate {
 			return false, "", 0, false
 		}
@@ -414,7 +441,7 @@ func (b *Bot) isEntry2(trade Trade) (is_entry bool, entry_side string, trigger_v
 		if v < b.config.minimumVolume {
 			return false, "", 0, false
 		}
-		avgV = b.avgVolume(moving_side, b.config.avgVolumePeriod)
+		avgV = b.avgVolume(moving_side, b.config.avgVolumePeriod, 0)
 		if v < avgV*b.config.againstAvgVolumeRate {
 			return false, "", 0, false
 		}
@@ -551,7 +578,7 @@ func (b *Bot) settle(trade Trade, isTaker bool) {
 	// 最後に決済した時刻を保存
 	b.lastCloseTime = trade.Time
 
-	b.state = 0
+	b.state = 2
 	b.nunpin = 0
 	b.position = Position{}
 	b.paidFee = 0
