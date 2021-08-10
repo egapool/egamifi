@@ -25,7 +25,10 @@ func NewRunner(bot Bot) Runner {
 
 func (r *Runner) Run() {
 	r.bot.InitBot()
+	r.execute()
+}
 
+func (r *Runner) execute() {
 	// websocketで取得
 	// DataFlowInterfaceとして別の場所で実装いれるひつようがある
 	ctx, cancel := context.WithCancel(context.Background())
@@ -53,8 +56,9 @@ func (r *Runner) Run() {
 
 			case realtime.ERROR:
 				fmt.Printf("%s	エラーを補足\n", v.Symbol)
+				fmt.Printf("websocket通信を再開します\n")
+				r.execute()
 			}
 		}
 	}
-
 }
