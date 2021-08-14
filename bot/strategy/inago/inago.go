@@ -156,7 +156,8 @@ func (b *Bot) updateCandle(trade Trade) {
 	} else {
 		// fmt.Println("Candle created: ", b.getCandle(0))
 		b.firstOfCandle = true
-		tp := internal.NewMinuteFromTime(trade.Time)
+		// tp := internal.NewMinuteFromTime(trade.Time)
+		tp := internal.NewMinutesFromTime(trade.Time, 5)
 		candle := internal.NewCandle(tp)
 		candle.AddTrade(trade.Size, trade.Price, trade.Side)
 		b.candles = append(b.candles, *candle)
@@ -213,7 +214,7 @@ func (b *Bot) process(trade Trade) {
 	// 約定履歴からOHLC作成
 	b.updateCandle(trade)
 
-	if len(b.candles) < b.config.avgVolumePeriod+2 {
+	if len(b.candles) < b.config.avgVolumePeriod+3 {
 		return
 	}
 
@@ -241,7 +242,7 @@ func (b *Bot) process(trade Trade) {
 
 func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 	b.recentTrades = append(b.recentTrades, trade)
-	is_entry, entry_side, trigger_volume, reverse := b.isEntry2(trade)
+	is_entry, entry_side, trigger_volume, reverse := b.isEntry4(trade)
 	if !is_entry {
 		return
 	}
@@ -333,6 +334,40 @@ func (b *Bot) handleCoolDownTime(trade Trade) {
 	b.state = 0
 	return
 }
+func (b *Bot) isEntry4(trade Trade) (is_entry bool, entry_side string, trigger_volume float64, reverse bool) {
+	b.firstOfCandle = false
+	candle := b.getCandle(1)
+	totalBV := b.avgVolume("buy", b.config.avgVolumePeriod, 1) * float64(b.config.avgVolumePeriod)
+	totalSV := b.avgVolume("sell", b.config.avgVolumePeriod, 1) * float64(b.config.avgVolumePeriod)
+	var which string
+	if math.Abs(totalBV-totalSV)*2/(totalBV+totalSV) < 0.15 {
+		// スルー
+	} else if totalBV > totalSV {
+		// which = "買い優勢" + strings.Repeat("aa", (totalBV-totalSV)/one_minute_base_vol))
+		which = "買い優勢🟩"
+	} else {
+		which = "売り優勢🟥"
+	}
+	var dir string
+	if candle.Open < candle.Close {
+		dir = "🟩"
+	} else {
+		dir = "🟥"
+	}
+	b.logger.Log(fmt.Sprintf("%s, %s, %.3f, %.3f, %.2f, %.0f, %.0f, %.0f, %s",
+		candle.Period.Start,
+		dir,
+		candle.Open,
+		candle.Close,
+		(candle.Close-candle.Open)/candle.Open*100,
+		totalBV,
+		totalSV,
+		totalBV-totalSV,
+		which,
+	))
+	return false, "", 0, false
+}
+
 func (b *Bot) isEntry3(trade Trade) (is_entry bool, entry_side string, trigger_volume float64, reverse bool) {
 	b.firstOfCandle = false
 	prev_candle := b.getCandle(1)

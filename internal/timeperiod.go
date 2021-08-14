@@ -19,6 +19,15 @@ func NewMinuteFromTime(t time.Time) TimePeriod {
 	}
 }
 
+func NewMinutesFromTime(t time.Time, minutes int) TimePeriod {
+	jst, _ := time.LoadLocation("Asia/Tokyo")
+	start := time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), minutes*(t.Minute()/minutes), 0, 0, jst)
+	return TimePeriod{
+		Start: start,
+		End:   start.Add(time.Minute*time.Duration(minutes-1) + time.Second*time.Duration(59)),
+	}
+}
+
 func (tp *TimePeriod) Contain(t time.Time) bool {
 	return tp.Start.Unix() <= t.Unix() && t.Unix() <= tp.End.Unix()
 }

@@ -30,7 +30,7 @@ func init() {
 func runInagoBot() {
 	config := inago.NewConfig2(
 		inagoConfigLot,
-		20,
+		10,
 		20,
 		1000,
 		0.002,
