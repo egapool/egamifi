@@ -32,9 +32,6 @@ var researchtradesCmd = &cobra.Command{
 		if tradeStartFlag == "" && tradePeriodFlag == 0 {
 			log.Fatal("start or period is required")
 		}
-		if tradeEndFlag == "" {
-			log.Fatal("end is required")
-		}
 		getTrades()
 	},
 }
@@ -52,7 +49,13 @@ func getTrades() {
 	client := client.NewRestClient(os.Getenv("FTX_KEY"), os.Getenv("FTX_SECRET"))
 
 	jst, _ := time.LoadLocation("Asia/Tokyo")
-	endTime, err := time.ParseInLocation("2006-01-02 15:04:05", tradeEndFlag, jst)
+	var endTime time.Time
+	var err error
+	if tradeEndFlag == "" {
+		endTime = time.Now().In(jst)
+	} else {
+		endTime, err = time.ParseInLocation("2006-01-02 15:04:05", tradeEndFlag, jst)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
