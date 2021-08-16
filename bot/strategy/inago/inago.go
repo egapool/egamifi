@@ -131,12 +131,15 @@ func (b *Bot) getCandle(offset int) internal.Candle {
 }
 
 func (b *Bot) avgVolume(side string, period, offset int) (avg_volume float64) {
+	rate := 0.05
+	i := 0
 	for _, c := range b.candles[len(b.candles)-period-offset-1 : len(b.candles)-offset-1] {
 		if side == "buy" {
-			avg_volume += c.BuyVolume
+			avg_volume += c.BuyVolume * (1 - (rate * float64(period-i)))
 		} else {
-			avg_volume += c.SellVolume
+			avg_volume += c.SellVolume * (1 - (rate * float64(period-i)))
 		}
+		i++
 	}
 	return avg_volume / float64(period)
 }
@@ -340,13 +343,22 @@ func (b *Bot) isEntry4(trade Trade) (is_entry bool, entry_side string, trigger_v
 	totalBV := b.avgVolume("buy", b.config.avgVolumePeriod, 1) * float64(b.config.avgVolumePeriod)
 	totalSV := b.avgVolume("sell", b.config.avgVolumePeriod, 1) * float64(b.config.avgVolumePeriod)
 	var which string
-	if math.Abs(totalBV-totalSV)*2/(totalBV+totalSV) < 0.15 {
-		// スルー
-	} else if totalBV > totalSV {
-		// which = "買い優勢" + strings.Repeat("aa", (totalBV-totalSV)/one_minute_base_vol))
-		which = "買い優勢🟩"
+	// diff_rate := math.Abs(totalBV-totalSV) * 2 / (totalBV + totalSV)
+	diff := math.Abs(totalBV - totalSV)
+	if totalBV > totalSV {
+		which = "買い優勢"
+		i := 0
+		for i < int(diff/totalBV*10) {
+			i++
+			which = which + "🟩"
+		}
 	} else {
-		which = "売り優勢🟥"
+		which = "売り優勢"
+		i := 0
+		for i < int(diff/totalSV*10) {
+			i++
+			which = which + "🟥"
+		}
 	}
 	var dir string
 	if candle.Open < candle.Close {

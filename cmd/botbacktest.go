@@ -42,7 +42,7 @@ func runBacktest() {
 
 func runInago() {
 	fmt.Println("start, end, avg_volume_period, against_avg_volume_rate, minimum_rate, guard_orver_bb3, minimum_candle_length, profit, pnl, fee, trade_count, win, lose, total_entry, win_rate, PF")
-	avg_volume_period_list := []int{1, 5, 10, 15}
+	avg_volume_period_list := []int{5, 10}
 	against_avg_volume_rate_list := []float64{10}
 	minimum_rate_list := []float64{800}
 	guard_over_bb3_list := []float64{0.001}
