@@ -20,7 +20,7 @@ var botbacktestCmd = &cobra.Command{
 	Use:   "test",
 	Short: "Back test",
 	Long: `Back test
-    ex) egamifi bot test -strategy inago -d ./data/ftx-trades-AXS-PERP-20210718220000-20210717220000.csv`,
+    ex) egamifi bot test -strategy inago -d ./data/ftx-trades-BTC-PERP-20210718220000-20210717220000.csv`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runBacktest()
 	},
@@ -28,7 +28,7 @@ var botbacktestCmd = &cobra.Command{
 
 func init() {
 	botCmd.AddCommand(botbacktestCmd)
-	botbacktestCmd.Flags().StringVarP(&testMarket, "market", "m", "AXS-PERP", "Market Sinbol")
+	botbacktestCmd.Flags().StringVarP(&testMarket, "market", "m", "BTC-PERP", "Market Sinbol")
 	botbacktestCmd.Flags().StringVarP(&testStrategy, "strategy", "s", "inago", "Strategy")
 	botbacktestCmd.Flags().StringVarP(&testDataSource, "data", "d", "", "Data source path")
 }
@@ -42,7 +42,7 @@ func runBacktest() {
 
 func runInago() {
 	fmt.Println("start, end, avg_volume_period, against_avg_volume_rate, minimum_rate, guard_orver_bb3, minimum_candle_length, profit, pnl, fee, trade_count, win, lose, total_entry, win_rate, PF")
-	avg_volume_period_list := []int{5, 10}
+	avg_volume_period_list := []int{5}
 	against_avg_volume_rate_list := []float64{10}
 	minimum_rate_list := []float64{800}
 	guard_over_bb3_list := []float64{0.001}

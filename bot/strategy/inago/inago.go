@@ -3,12 +3,14 @@ package inago
 import (
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/egapool/egamifi/internal"
 	"github.com/egapool/egamifi/internal/indicators"
+	"github.com/egapool/egamifi/internal/notification"
 )
 
 const taker_fee float64 = 0.000679
@@ -27,6 +29,10 @@ type BotLogger interface {
 type InagoClient interface {
 	MarketOrder(market string, side string, size float64, time time.Time, price float64) Position
 	Close(market string, position Position, price float64) float64
+}
+
+type Notifer interface {
+	Notify(message string)
 }
 
 // Inago Bot
@@ -51,10 +57,19 @@ type Bot struct {
 	middlePrice float64
 	upperPrice  float64
 	lowerPrice  float64
+
+	notifer Notifer
 }
 
 func NewBot(client InagoClient, market string, config Config, logger BotLogger) *Bot {
 	jst, _ := time.LoadLocation("Asia/Tokyo")
+
+	var n Notifer
+	if os.Getenv("SLACK_CHANNEL") == "" {
+		n = notification.NewNone()
+	} else {
+		n = notification.NewNotifer(os.Getenv("SLACK_CHANNEL"), os.Getenv("SLACK_WEBHOOK"))
+	}
 
 	return &Bot{
 		client:        client,
@@ -63,6 +78,7 @@ func NewBot(client InagoClient, market string, config Config, logger BotLogger) 
 		config:        config,
 		loc:           jst,
 		firstOfCandle: true,
+		notifer:       n,
 	}
 }
 
@@ -146,23 +162,23 @@ func (b *Bot) avgVolume(side string, period, offset int) (avg_volume float64) {
 
 func (b *Bot) updateCandle(trade Trade) {
 	if len(b.candles) == 0 {
-		tp := internal.NewMinuteFromTime(trade.Time)
+		tp := internal.NewMinutesFromTime(trade.Time, 15)
 		candle := internal.NewCandle(tp)
-		candle.AddTrade(trade.Size, trade.Price, trade.Side)
+		candle.AddTrade(trade.Size, trade.Price, trade.Side, trade.Liquidation)
 		b.candles = append(b.candles, *candle)
 		return
 	}
 	latest_candle := b.candles[len(b.candles)-1]
 	if latest_candle.Period.Contain(trade.Time) {
-		latest_candle.AddTrade(trade.Size, trade.Price, trade.Side)
+		latest_candle.AddTrade(trade.Size, trade.Price, trade.Side, trade.Liquidation)
 		b.candles[len(b.candles)-1] = latest_candle
 	} else {
 		// fmt.Println("Candle created: ", b.getCandle(0))
 		b.firstOfCandle = true
 		// tp := internal.NewMinuteFromTime(trade.Time)
-		tp := internal.NewMinutesFromTime(trade.Time, 5)
+		tp := internal.NewMinutesFromTime(trade.Time, 15)
 		candle := internal.NewCandle(tp)
-		candle.AddTrade(trade.Size, trade.Price, trade.Side)
+		candle.AddTrade(trade.Size, trade.Price, trade.Side, trade.Liquidation)
 		b.candles = append(b.candles, *candle)
 		if len(b.candles) < b.config.avgVolumePeriod+1 {
 			return
@@ -245,7 +261,7 @@ func (b *Bot) process(trade Trade) {
 
 func (b *Bot) handleWaitForOpenPosition(trade Trade) {
 	b.recentTrades = append(b.recentTrades, trade)
-	is_entry, entry_side, trigger_volume, reverse := b.isEntry4(trade)
+	is_entry, entry_side, trigger_volume, reverse := b.isEntry5(trade)
 	if !is_entry {
 		return
 	}
@@ -337,6 +353,24 @@ func (b *Bot) handleCoolDownTime(trade Trade) {
 	b.state = 0
 	return
 }
+func (b *Bot) isEntry5(trade Trade) (is_entry bool, entry_side string, trigger_volume float64, reverse bool) {
+	b.firstOfCandle = false
+	c := b.getCandle(1)
+	liq_vol := c.SellLiquidationVolume - c.BuyLiquidationVolume
+	if liq_vol > 4 {
+		t := fmt.Sprintf("%s, ロング清算 %.1f BTC, 価格 %.0f, 買vol %.1f BTC, 売vol %.1f BTC",
+			trade.Time,
+			liq_vol,
+			trade.Price,
+			c.BuyVolume,
+			c.SellVolume,
+		)
+		b.logger.Log(t)
+		b.notifer.Notify(t)
+	}
+	return false, "", 0, false
+}
+
 func (b *Bot) isEntry4(trade Trade) (is_entry bool, entry_side string, trigger_volume float64, reverse bool) {
 	b.firstOfCandle = false
 	candle := b.getCandle(1)
